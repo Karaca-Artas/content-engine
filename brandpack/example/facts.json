@@ -1,0 +1,10 @@
+{
+  "brand_name": "Örnek Marka (anonim)",
+  "approved_at": "2026-01-01",
+  "products": [{ "name": "örnek ürün", "notes": "yalnız şema gösterimi için" }],
+  "moq": 500,
+  "lead_times": { "standart": "3-4 hafta" },
+  "certificates": ["Örnek Sertifika"],
+  "named_references": [],
+  "not_offered": ["örnek: perakende satış"]
+}
