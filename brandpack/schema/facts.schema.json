@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Onaylı gerçekler",
+  "type": "object",
+  "required": ["brand_name", "approved_at"],
+  "properties": {
+    "brand_name": { "type": "string" },
+    "approved_at": { "type": "string", "format": "date" },
+    "products": { "type": "array", "items": { "type": "object" } },
+    "moq": { "type": ["integer", "object", "null"], "description": "Asgari sipariş adedi (ürün bazında obje olabilir)" },
+    "lead_times": { "type": "object", "description": "Termin süreleri (iş tipine göre)" },
+    "certificates": { "type": "array", "items": { "type": "string" } },
+    "named_references": { "type": "array", "items": { "type": "string" } },
+    "not_offered": { "type": "array", "items": { "type": "string" }, "description": "YAPILMAYAN işler — içerikte vaat edilemez" }
+  }
+}

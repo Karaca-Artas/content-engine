@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Terim sözlüğü",
+  "type": "object",
+  "properties": {
+    "languages": { "type": "array", "items": { "type": "string" } },
+    "terms": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["lang", "correct"],
+        "properties": {
+          "lang": { "type": "string" },
+          "correct": { "type": "string" },
+          "traps": { "type": "array", "items": { "type": "string" }, "description": "Yanlış ürüne/anlama giden tuzak terimler — taslakta yasak" },
+          "evidence": { "type": "string", "description": "SERP kanıtı / doğrulama notu" }
+        }
+      }
+    }
+  }
+}

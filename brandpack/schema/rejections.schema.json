@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Ret hafızası",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["topic", "date", "reason"],
+    "properties": {
+      "topic": { "type": "string" },
+      "date": { "type": "string", "format": "date" },
+      "reason": { "type": "string" },
+      "channel": { "type": "string", "description": "Öneriyi üreten kanal (A/B/C veya kapı)" }
+    }
+  }
+}

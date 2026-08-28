@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Aksiyon kütüğü",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["date", "page", "action_type"],
+    "properties": {
+      "date": { "type": "string", "format": "date" },
+      "page": { "type": "string" },
+      "action_type": { "type": "string", "enum": ["title_meta", "enrich", "merge_or_remove", "new_page", "strategic"] },
+      "before": { "type": "object", "description": "Önce: puan, tıklama, sıra..." },
+      "after": { "type": "object", "description": "Sonra (6-8 hafta kuralına göre ölçülür)" },
+      "remeasure_after": { "type": "string", "format": "date" }
+    }
+  }
+}
