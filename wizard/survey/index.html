@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>İçerik Motoru Kurulum Anketi</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --paper:#FAF8F5; --card:#FFFFFF; --card-2:#F4F0EA;
+    --ink:#231F20; --ink-70:#454041; --ink-60:#585152; --ink-50:#6F6769;
+    --green:#157F3F; --green-soft:#E3F0E7;
+    --kraft:#8A6C4C; --kraft-soft:#F1E9DF;
+    --line:#E5DFD6; --focus:#157F3F;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper:#1B1817; --card:#242020; --card-2:#2C2726;
+      --ink:#F4F0EA; --ink-70:#D8D1CA; --ink-60:#BFB7AF; --ink-50:#A39A92;
+      --green:#4CAE72; --green-soft:#1F3328;
+      --kraft:#C6A27C; --kraft-soft:#332B22;
+      --line:#3A3432; --focus:#4CAE72;
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#1B1817; --card:#242020; --card-2:#2C2726;
+    --ink:#F4F0EA; --ink-70:#D8D1CA; --ink-60:#BFB7AF; --ink-50:#A39A92;
+    --green:#4CAE72; --green-soft:#1F3328;
+    --kraft:#C6A27C; --kraft-soft:#332B22;
+    --line:#3A3432; --focus:#4CAE72;
+  }
+  *{box-sizing:border-box}
+  body{margin:0; background:var(--paper); color:var(--ink-70);
+    font-family:"Source Sans 3","Segoe UI",system-ui,sans-serif; font-size:16px; line-height:1.6}
+  .wrap{max-width:820px; margin:0 auto; padding:52px 22px 90px}
+  h1,h2{font-family:"Archivo",sans-serif; color:var(--ink); text-wrap:balance; margin:0}
+  h1{font-size:clamp(26px,5vw,36px); font-weight:700; line-height:1.15}
+  h2{font-size:14px; font-weight:700; text-transform:uppercase; letter-spacing:.1em; color:var(--green)}
+  p{margin:0 0 10px; max-width:70ch}
+  .eyebrow{font-family:"IBM Plex Mono",monospace; font-size:12px; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--green); font-weight:500; margin-bottom:10px}
+  header.top{padding-bottom:26px; border-bottom:2px solid var(--ink); margin-bottom:28px}
+  header.top .sub{margin-top:12px; color:var(--ink-60); font-size:16.5px; max-width:64ch}
+  .legend{display:flex; flex-wrap:wrap; gap:10px; margin-top:16px; font-size:13px}
+  .badge{display:inline-flex; align-items:center; gap:6px; border-radius:99px; padding:3px 12px;
+    font-family:"IBM Plex Mono",monospace; font-size:11px; letter-spacing:.06em; font-weight:500}
+  .badge.src{background:var(--kraft-soft); color:var(--kraft)}
+  .badge.you{background:var(--green-soft); color:var(--green)}
+  .badge.auto{background:var(--card-2); color:var(--ink-60); border:1px solid var(--line)}
+  section{margin:34px 0 0}
+  .q{background:var(--card); border:1px solid var(--line); border-radius:10px; padding:20px 22px; margin-top:14px}
+  .q .qhead{display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:4px}
+  .q .qnum{font-family:"IBM Plex Mono",monospace; font-size:12px; color:var(--ink-50)}
+  .q h3{font-family:"Archivo",sans-serif; font-size:17px; font-weight:600; color:var(--ink); margin:0 0 6px}
+  .q .hint{font-size:14px; color:var(--ink-60); margin-bottom:12px; max-width:none}
+  .sublabel{font-family:"IBM Plex Mono",monospace; font-size:11.5px; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--ink-50); margin:12px 0 7px}
+  textarea,input[type=text]{width:100%; border:1px solid var(--line); border-radius:8px;
+    background:var(--paper); color:var(--ink); font:inherit; font-size:15px; padding:10px 12px}
+  textarea{min-height:84px; resize:vertical}
+  textarea:focus,input[type=text]:focus{outline:2px solid var(--focus); outline-offset:1px; border-color:transparent}
+  textarea:disabled{opacity:.45}
+  .srcopt{display:flex; align-items:flex-start; gap:9px; margin-top:10px; padding:9px 12px;
+    background:var(--kraft-soft); border-radius:8px; font-size:13.5px; color:var(--ink-70)}
+  .srcopt input{margin-top:3px; accent-color:var(--kraft); width:15px; height:15px; flex:none}
+  .choices{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:4px}
+  .choices label{display:inline-flex; align-items:center; gap:7px; border:1px solid var(--line);
+    border-radius:99px; padding:5px 14px; font-size:14px; cursor:pointer; background:var(--paper); color:var(--ink-70)}
+  .choices input{accent-color:var(--green)}
+  .modes{display:flex; flex-direction:column; gap:8px; margin-bottom:12px}
+  .modes label{display:flex; align-items:flex-start; gap:9px; border:1px solid var(--line);
+    border-radius:8px; padding:9px 13px; font-size:14px; cursor:pointer; background:var(--paper); color:var(--ink-70)}
+  .modes input{accent-color:var(--green); margin-top:3px; flex:none}
+  .modes b{color:var(--ink); font-weight:600}
+  .grid2{display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px}
+  .cell{display:flex; flex-direction:column; gap:4px}
+  .fieldlab{font-family:"IBM Plex Mono",monospace; font-size:11px; letter-spacing:.07em;
+    text-transform:uppercase; color:var(--ink-50)}
+  .actions{margin-top:40px; display:flex; gap:12px; flex-wrap:wrap}
+  button{font-family:"Archivo",sans-serif; font-weight:600; font-size:15px; border-radius:8px;
+    padding:11px 22px; cursor:pointer; border:1px solid transparent}
+  button:focus-visible{outline:2px solid var(--focus); outline-offset:2px}
+  .primary{background:var(--green); color:#fff}
+  .ghost{background:transparent; color:var(--ink-60); border-color:var(--line)}
+  #out{margin-top:18px; display:none}
+  #out.show{display:block}
+  #outtext{min-height:220px; font-family:"IBM Plex Mono",monospace; font-size:13px}
+  .note{font-size:13px; color:var(--ink-50); margin-top:8px}
+  footer{margin-top:56px; padding-top:16px; border-top:1px solid var(--line);
+    font-family:"IBM Plex Mono",monospace; font-size:12px; color:var(--ink-50);
+    display:flex; flex-wrap:wrap; gap:8px 24px}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <div class="eyebrow">İçerik Motoru · Kurulum Sihirbazı</div>
+    <h1>Marka Kurulum Anketi</h1>
+    <p class="sub">Bu 12 soru, içerik motorunun sizin markanız için derinlemesine çalışmasını sağlayan bilgi paketinin temelini oluşturur. Yaklaşık 15–20 dakika sürer. Cevaplar tarayıcınızda taslak olarak saklanır; bitirince "Cevapları derle" ile tek metin halinde alırsınız.</p>
+    <div class="legend">
+      <span class="badge src">KAYNAKTAN BAKILABİLİR</span>
+      <span style="color:var(--ink-60)">— cevabı broşürünüzde/sitenizde olabilir; kutucuğu işaretlerseniz motor oradan çıkarır, siz yalnız teyit edersiniz.</span>
+    </div>
+    <div class="legend">
+      <span class="badge you">YALNIZ SİZ BİLİRSİNİZ</span>
+      <span style="color:var(--ink-60)">— hiçbir belgede yazmaz; motorun en çok değer ürettiği cevaplar bunlardır.</span>
+    </div>
+    <div class="legend">
+      <span class="badge auto">MOTOR KEŞFEDEBİLİR</span>
+      <span style="color:var(--ink-60)">— siz verebilirsiniz, motor kendisi bulabilir, ya da ikisi sentezlenir; çalışma modunu siz seçersiniz.</span>
+    </div>
+  </header>
+
+  <section>
+    <h2>A · Marka ve pazar</h2>
+
+    <div class="q">
+      <div class="qhead"><h3>Kaynaklarınız</h3><span class="qnum">1 / 12</span></div>
+      <p class="hint">Web sitenizin adresi ve elinizdeki tanıtım malzemeleri. Malzeme yoksa "hiçbiri yok" seçin — anketin geri kalanı bunu telafi eder.</p>
+      <input type="text" id="q1a" placeholder="Web sitesi adresi">
+      <div class="sublabel">Elinizdeki malzemeler — birden fazla seçilebilir</div>
+      <div class="choices">
+        <label><input type="checkbox" id="m_brosur">Broşür / katalog</label>
+        <label><input type="checkbox" id="m_sunum">Şirket sunumu</label>
+        <label><input type="checkbox" id="m_fiyat">Fiyat listesi</label>
+        <label><input type="checkbox" id="m_foto">Ürün fotoğraf arşivi</label>
+        <label><input type="checkbox" id="m_yok">Hiçbiri yok</label>
+      </div>
+      <div style="height:8px"></div>
+      <input type="text" id="q1b" placeholder="Diğer malzeme / detay (isteğe bağlı)">
+    </div>
+
+    <div class="q">
+      <div class="qhead"><h3>Ne satıyorsunuz, kime? <span class="badge src">KAYNAKTAN BAKILABİLİR</span></h3><span class="qnum">2 / 12</span></div>
+      <p class="hint">Bir-iki cümleyle işiniz; ve satın alma kararını kim veriyor?</p>
+      <div class="choices">
+        <label><input type="radio" name="q2t" value="B2B">B2B</label>
+        <label><input type="radio" name="q2t" value="B2C">B2C</label>
+        <label><input type="radio" name="q2t" value="Her ikisi">Her ikisi</label>
+      </div>
+      <div class="sublabel">Tipik alıcı — birden fazla seçilebilir</div>
+      <div class="choices">
+        <label><input type="checkbox" id="b_satinalma">Satın alma yöneticisi</label>
+        <label><input type="checkbox" id="b_sahip">İşletme sahibi</label>
+        <label><input type="checkbox" id="b_pazarlama">Pazarlama / marka yöneticisi</label>
+        <label><input type="checkbox" id="b_tuketici">Son tüketici</label>
+        <label><input type="checkbox" id="b_diger">Diğer</label>
+      </div>
+      <div style="height:8px"></div>
+      <textarea id="q2" placeholder="Örn. restoranlara toptan zeytinyağı satıyoruz"></textarea>
+      <label class="srcopt"><input type="checkbox" id="q2src">Bu bilgiyi broşürden/web sitesinden alın — çıkanı ben teyit edeceğim</label>
+    </div>
+
+    <div class="q">
+      <div class="qhead"><h3>Hedef pazarlar ve diller <span class="badge src">KAYNAKTAN BAKILABİLİR</span></h3><span class="qnum">3 / 12</span></div>
+      <p class="hint">Öncelik sırasıyla hangi ülkeler/bölgeler? (Sitede dil olması o pazarın öncelikli olduğu anlamına gelmez — sıralamayı siz verin.)</p>
+      <textarea id="q3" placeholder="Örn. 1) İngiltere 2) Almanya 3) iç pazar"></textarea>
+      <div class="sublabel">İçerik hangi dillerde yayınlanacak — birden fazla seçilebilir</div>
+      <div class="choices">
+        <label><input type="checkbox" id="l_tr">Türkçe</label>
+        <label><input type="checkbox" id="l_en">İngilizce</label>
+        <label><input type="checkbox" id="l_de">Almanca</label>
+        <label><input type="checkbox" id="l_fr">Fransızca</label>
+        <label><input type="checkbox" id="l_diger">Diğer</label>
+      </div>
+      <label class="srcopt"><input type="checkbox" id="q3src">Bu bilgiyi broşürden/web sitesinden alın — çıkanı ben teyit edeceğim</label>
+      <label class="srcopt"><input type="checkbox" id="q3disc">Verdiğim pazarlara ek olarak, fırsat olarak görülen pazarlar da önerilsin</label>
+    </div>
+  </section>
+
+  <section>
+    <h2>B · Ticari gerçekler</h2>
+
+    <div class="q">
+      <div class="qhead"><h3>Ticari sabitleriniz <span class="badge src">KAYNAKTAN BAKILABİLİR</span></h3><span class="qnum">4 / 12</span></div>
+      <p class="hint">Dikkat: sitenizde yazan rakam güncel değilse buraya doğrusunu yazın — motor her zaman buradaki rakamı esas alır.</p>
+      <div class="grid2">
+        <div class="cell"><span class="fieldlab">Minimum sipariş (MOQ)</span><input type="text" id="q4moq" placeholder="örn. 1.000 adet"></div>
+        <div class="cell"><span class="fieldlab">Üretim / teslim süresi</span><input type="text" id="q4termin" placeholder="örn. 3 hafta"></div>
+        <div class="cell"><span class="fieldlab">Numune süreci</span><input type="text" id="q4numune" placeholder="örn. ücretsiz, 1 hafta"></div>
+        <div class="cell"><span class="fieldlab">Teslim şekli</span><input type="text" id="q4teslim" placeholder="örn. EXW / kapıya teslim"></div>
+      </div>
+      <label class="srcopt"><input type="checkbox" id="q4src">Bu bilgiyi broşürden/web sitesinden alın — çıkanı ben teyit edeceğim</label>
+    </div>
+
+    <div class="q">
+      <div class="qhead"><h3>Sertifika ve belgeler <span class="badge src">KAYNAKTAN BAKILABİLİR</span></h3><span class="qnum">5 / 12</span></div>
+      <p class="hint">Yalnız bugün gerçekten sahip olduklarınız — süresi dolan veya başvuru aşamasındakiler hariç. Motor, sahip olunmayan hiçbir belgeyi hiçbir metinde iddia etmez.</p>
+      <div class="choices">
+        <label><input type="checkbox" id="q5yok">Sertifikamız yok</label>
+      </div>
+      <div style="height:8px"></div>
+      <textarea id="q5" placeholder="Örn. ISO 9001 (2027'ye kadar geçerli) · helal sertifikası"></textarea>
+      <label class="srcopt"><input type="checkbox" id="q5src">Bu bilgiyi broşürden/web sitesinden alın — çıkanı ben teyit edeceğim</label>
+    </div>
+
+    <div class="q">
+      <div class="qhead"><h3>Ne YAPMIYORSUNUZ? <span class="badge you">YALNIZ SİZ BİLİRSİNİZ</span></h3><span class="qnum">6 / 12</span></div>
+      <p class="hint">Üretmediğiniz/satmadığınız ama sizinkiyle karıştırılan ürünler, almadığınız işler, ve kullanılmasını istemediğiniz iddia ya da ifadeler. Bu liste motorun yanlış vaat üretmesini engelleyen en önemli settir.</p>
+      <textarea id="q6" placeholder="Örn. perakende satış yapmıyoruz · X ürününü üretmiyoruz · 'en ucuz' iddiası asla kullanılmasın"></textarea>
+    </div>
+  </section>
+
+  <section>
+    <h2>C · Rakipler ve konum</h2>
+
+    <div class="q">
+      <div class="qhead"><h3>Rakipleriniz kimler? <span class="badge auto">MOTOR KEŞFEDEBİLİR</span></h3><span class="qnum">7 / 12</span></div>
+      <p class="hint">Önce çalışma modunu seçin. Sentez modu önerilir: sizin bildiğiniz rakipler sektör bilginizi, web taramasıyla bulunanlar ise yönlendirmesiz ve organik bir dış görüşü getirir — asıl güç ikisinin farkındadır (sizin saymadığınız ama arama sonuçlarında sizinle yarışan bir firma başlı başına bir bulgudur).</p>
+      <div class="modes">
+        <label><input type="radio" name="q7mode" value="verdiklerim"><span><b>Sadece benim verdiklerim</b> — yalnız aşağıya yazdığım rakipler analiz edilsin</span></label>
+        <label><input type="radio" name="q7mode" value="organik"><span><b>Kendi bulsun</b> — ben isim vermeyeceğim; yönlendirmesiz, organik keşif yapılsın ve bulunanlar bana onaylatılsın</span></label>
+        <label><input type="radio" name="q7mode" value="sentez" checked><span><b>Sentez (önerilen)</b> — benim verdiklerimi analiz etsin, kendi taramasıyla bulduklarını eklesin, ikisini birleştirip veri oluştursun</span></label>
+      </div>
+      <textarea id="q7" placeholder="Örn. firma-a.com, firma-b.de (en iyisi bu), yerel olarak Firma C"></textarea>
+    </div>
+
+    <div class="q">
+      <div class="qhead"><h3>Kanıtlanabilir üstünlükleriniz <span class="badge src">KAYNAKTAN BAKILABİLİR</span></h3><span class="qnum">8 / 12</span></div>
+      <p class="hint">Sizi rakipten gerçekten ayıran, gerekirse kanıtlayabileceğiniz 2–3 şey: kapasite, hız, konum, makine parkı, uzmanlık. "Kalite" gibi genel kelimeler değil, ölçülebilir gerçekler. Kaynaktan çıkan her iddia yayına girmeden önce size teyit ettirilir.</p>
+      <div class="modes">
+        <label><input type="radio" name="q8mode" value="ben"><span><b>Kendim yazacağım</b> — üstünlükler aşağıda</span></label>
+        <label><input type="radio" name="q8mode" value="kaynak"><span><b>Broşürden/web sitesinden alınsın</b> — çıkanları ben teyit edeceğim</span></label>
+        <label><input type="radio" name="q8mode" value="sentez" checked><span><b>Sentez (önerilen)</b> — ben yazayım, kaynaktan çıkanlar da eklensin</span></label>
+      </div>
+      <textarea id="q8" placeholder="Örn. günde 40.000 adet kapasite · havalimanına 20 dk · 24 saatte teklif"></textarea>
+    </div>
+
+    <div class="q">
+      <div class="qhead"><h3>Adı verilebilir referanslar <span class="badge src">KAYNAKTAN BAKILABİLİR</span></h3><span class="qnum">9 / 12</span></div>
+      <p class="hint">Web sitesinde adını KULLANABİLECEĞİNİZ müşteriler. Önemli: izin durumu hiçbir belgede yazmaz — kaynaktan alınsa bile, çıkan her isim için "kullanılabilir mi?" sorusu size gelir ve onayınız olmadan hiçbir isim içeriğe girmez.</p>
+      <div class="modes">
+        <label><input type="radio" name="q9mode" value="ben"><span><b>Kendim yazacağım</b> — izin durumlarıyla birlikte aşağıda</span></label>
+        <label><input type="radio" name="q9mode" value="kaynak"><span><b>Broşürden/web sitesinden alınsın</b> — çıkan isimlerin izinlerini ben teyit edeceğim</span></label>
+        <label><input type="radio" name="q9mode" value="sentez" checked><span><b>Sentez (önerilen)</b> — ben yazayım, kaynaktan çıkanlar da izin teyidiyle eklensin</span></label>
+      </div>
+      <textarea id="q9" placeholder="Örn. Marka X (kullanılabilir) · Marka Y (logo evet, vaka anlatımı hayır) · Marka Z (anılmasın)"></textarea>
+    </div>
+  </section>
+
+  <section>
+    <h2>D · İşleyiş</h2>
+
+    <div class="q">
+      <div class="qhead"><h3>Müşterilerin en sık sorduğu sorular <span class="badge auto">MOTOR KEŞFEDEBİLİR</span></h3><span class="qnum">10 / 12</span></div>
+      <p class="hint">Müşterinin soruyu GERÇEKTE nasıl sorduğu, hangi kelimeleri kullandığı çok değerlidir. Hafızanızdan yazabilirsiniz; ama en zengin kaynak e-posta/mesaj arşivinizdir — motor onu tek seferlik tarayıp anonim bir soru dosyası çıkarabilir (isim, firma ve fiyat asla kaydedilmez).</p>
+      <div class="modes">
+        <label><input type="radio" name="q10mode" value="ben"><span><b>Kendim yazacağım</b> — aklımdaki en sık 5 soru ve itirazlar aşağıda</span></label>
+        <label><input type="radio" name="q10mode" value="arsiv"><span><b>Arşivden çıkarılsın</b> — e-posta/mesaj arşivim tek seferlik taransın, anonim soru dosyası üretilsin</span></label>
+        <label><input type="radio" name="q10mode" value="sentez" checked><span><b>Sentez (önerilen)</b> — ben yazayım, arşiv taraması da yapılsın; ikisi birleştirilsin</span></label>
+      </div>
+      <textarea id="q10" placeholder="Örn. 'kaç adetten başlıyor?' · 'numune gönderir misiniz?' · itiraz: 'yurtdışından almak riskli değil mi?'"></textarea>
+    </div>
+
+    <div class="q">
+      <div class="qhead"><h3>Ticari öncelikleriniz <span class="badge you">YALNIZ SİZ BİLİRSİNİZ</span></h3><span class="qnum">11 / 12</span></div>
+      <p class="hint">Büyütmek istediğiniz ürün/hizmet veya müşteri segmenti hangisi? Ve tersi: iyi ilgi görse bile ticari değeri düşük olan ne? Motor içerik gücünü buna göre dağıtır.</p>
+      <textarea id="q11" placeholder="Örn. büyüsün: ihracat müşterisi, X ürün grubu · düşük değer: tekil perakende talepleri"></textarea>
+    </div>
+
+    <div class="q">
+      <div class="qhead"><h3>Kapasite ve onay <span class="badge you">YALNIZ SİZ BİLİRSİNİZ</span></h3><span class="qnum">12 / 12</span></div>
+      <p class="hint">Motor her ay size bir öneri listesi getirir: "şu sayfayı güncelle, şu yazıyı yaz" gibi. Kapasite seçiminiz o listenin uzunluğunu belirler — ayda 2 iş yapabiliyorsanız 10 maddelik liste gelmez, en önemli 2 iş gelir.</p>
+      <div class="sublabel">Ayda gerçekçi iş kapasitesi</div>
+      <div class="choices">
+        <label><input type="radio" name="q12cap" value="1–2 iş">1–2 iş</label>
+        <label><input type="radio" name="q12cap" value="2–4 iş">2–4 iş</label>
+        <label><input type="radio" name="q12cap" value="4–8 iş">4–8 iş</label>
+        <label><input type="radio" name="q12cap" value="8+ iş">8+ iş</label>
+      </div>
+      <div class="sublabel">Taslakları kim onaylar</div>
+      <div class="choices">
+        <label><input type="radio" name="q12who" value="Ben onaylarım">Ben onaylarım</label>
+        <label><input type="radio" name="q12who" value="Ekipten biri">Ekipten biri</label>
+        <label><input type="radio" name="q12who" value="Ajans / danışman">Ajans / danışman</label>
+      </div>
+      <div class="sublabel">Onay kanalı — birden fazla seçilebilir</div>
+      <div class="choices">
+        <label><input type="checkbox" id="c_eposta">E-posta</label>
+        <label><input type="checkbox" id="c_wa">WhatsApp</label>
+        <label><input type="checkbox" id="c_tel">Telefon</label>
+        <label><input type="checkbox" id="c_pano">Pano üzerinden</label>
+      </div>
+      <div style="height:8px"></div>
+      <input type="text" id="q12" placeholder="Ek not (isteğe bağlı) — örn. onaylayan kişinin adı">
+    </div>
+  </section>
+
+  <div class="actions">
+    <button class="primary" id="compile" type="button">Cevapları derle</button>
+    <button class="ghost" id="copy" type="button">Panoya kopyala</button>
+    <button class="ghost" id="clear" type="button">Formu temizle</button>
+  </div>
+  <div id="out">
+    <textarea id="outtext" readonly aria-label="Derlenmiş cevaplar"></textarea>
+    <p class="note">Bu metni kopyalayıp motoru kuran kişiye gönderin. "Kaynaktan al" işaretli sorular, keşif turunda web sitenizden ve broşürünüzden doldurulur; çıkan taslağı onaylamadan motor içerik üretmez.</p>
+  </div>
+
+  <footer>
+    <span>İçerik Motoru · Kurulum Sihirbazı</span>
+    <span>Anket v1.2 — 12 soru</span>
+  </footer>
+</div>
+
+<script>
+(function(){
+  var fields=["q1a","q1b","q2","q3","q4moq","q4termin","q4numune","q4teslim","q5","q6","q7","q8","q9","q10","q11","q12"];
+  var checks=["q2src","q3src","q4src","q5src","q3disc","q5yok",
+    "m_brosur","m_sunum","m_fiyat","m_foto","m_yok",
+    "b_satinalma","b_sahip","b_pazarlama","b_tuketici","b_diger",
+    "l_tr","l_en","l_de","l_fr","l_diger",
+    "c_eposta","c_wa","c_tel","c_pano"];
+  var radios=["q2t","q7mode","q8mode","q9mode","q10mode","q12cap","q12who"];
+  var matNames={m_brosur:"broşür/katalog",m_sunum:"şirket sunumu",m_fiyat:"fiyat listesi",m_foto:"ürün fotoğraf arşivi",m_yok:"hiçbiri yok"};
+  var buyerNames={b_satinalma:"satın alma yöneticisi",b_sahip:"işletme sahibi",b_pazarlama:"pazarlama/marka yöneticisi",b_tuketici:"son tüketici",b_diger:"diğer"};
+  var langNames={l_tr:"Türkçe",l_en:"İngilizce",l_de:"Almanca",l_fr:"Fransızca",l_diger:"diğer"};
+  var chanNames={c_eposta:"e-posta",c_wa:"WhatsApp",c_tel:"telefon",c_pano:"pano üzerinden"};
+
+  function radioVal(name){var r=document.querySelector('input[name="'+name+'"]:checked');return r?r.value:""}
+  function val(id){return document.getElementById(id).value.trim()}
+  function picks(map){return Object.keys(map).filter(function(id){return document.getElementById(id).checked}).map(function(id){return map[id]}).join(", ")}
+  function srcMark(id){return document.getElementById(id)&&document.getElementById(id).checked?" [KAYNAKTAN ALINACAK — teyit edilecek]":""}
+
+  function save(){try{
+    var d={};fields.forEach(function(id){d[id]=document.getElementById(id).value});
+    checks.forEach(function(id){d[id]=document.getElementById(id).checked});
+    radios.forEach(function(n){d[n]=radioVal(n)});
+    localStorage.setItem("kurulum-anketi",JSON.stringify(d));
+  }catch(e){}}
+  function load(){try{
+    var raw=localStorage.getItem("kurulum-anketi"); if(!raw)return;
+    var d=JSON.parse(raw);
+    fields.forEach(function(id){if(d[id])document.getElementById(id).value=d[id]});
+    checks.forEach(function(id){if(d[id])document.getElementById(id).checked=true});
+    radios.forEach(function(n){if(d[n]){var r=document.querySelector('input[name="'+n+'"][value="'+d[n]+'"]'); if(r)r.checked=true;}});
+  }catch(e){}}
+
+  var placeholders={
+    q7:"Örn. firma-a.com, firma-b.de (en iyisi bu), yerel olarak Firma C",
+    q8:"Örn. günde 40.000 adet kapasite · havalimanına 20 dk · 24 saatte teklif",
+    q9:"Örn. Marka X (kullanılabilir) · Marka Y (logo evet, vaka anlatımı hayır) · Marka Z (anılmasın)",
+    q5:"Örn. ISO 9001 (2027'ye kadar geçerli) · helal sertifikası"
+  };
+  function syncModes(){
+    [["q7","q7mode","organik","Keşif otomatik yapılacak — bu alan devre dışı"],
+     ["q8","q8mode","kaynak","Kaynaktan alınacak — bu alan devre dışı"],
+     ["q9","q9mode","kaynak","Kaynaktan alınacak — bu alan devre dışı"]].forEach(function(row){
+      var off=radioVal(row[1])===row[2];
+      var t=document.getElementById(row[0]); t.disabled=off;
+      t.placeholder=off?row[3]:placeholders[row[0]];
+    });
+    var yok=document.getElementById("q5yok").checked;
+    var t5=document.getElementById("q5"); t5.disabled=yok;
+    t5.placeholder=yok?"Sertifika yok olarak işaretlendi":placeholders.q5;
+  }
+  load(); syncModes();
+  document.addEventListener("input",save);
+  document.addEventListener("change",function(){save();syncModes();});
+
+  document.getElementById("compile").addEventListener("click",function(){
+    var qModes={
+      q7:{verdiklerim:"yalnız verdiklerim analiz edilsin",organik:"kendi bulsun (yönlendirmesiz keşif, onaya sunulacak)",sentez:"sentez: verdiklerim + keşifle bulunanlar"},
+      q8:{ben:"kendim yazdım",kaynak:"broşürden/siteden alınsın — teyit edilecek",sentez:"sentez: yazdıklarım + kaynaktan çıkanlar"},
+      q9:{ben:"kendim yazdım",kaynak:"broşürden/siteden alınsın — izinler teyit edilecek",sentez:"sentez: yazdıklarım + kaynaktan çıkanlar (izin teyitli)"},
+      q10:{ben:"kendim yazdım",arsiv:"e-posta arşivinden çıkarılsın",sentez:"sentez: yazdıklarım + arşiv taraması"}
+    };
+    var L=["İÇERİK MOTORU KURULUM ANKETİ — CEVAPLAR","Tarih: "+new Date().toLocaleDateString("tr-TR"),""];
+    L.push("1. Kaynaklar:");
+    L.push("   Site: "+(val("q1a")||"—"));
+    L.push("   Malzemeler: "+(picks(matNames)||"—")+(val("q1b")?" · "+val("q1b"):""),"");
+    L.push("2. Ne satıyorsunuz, kime ("+(radioVal("q2t")||"seçilmedi")+")"+srcMark("q2src")+":");
+    L.push("   "+(val("q2")||"—"));
+    L.push("   Tipik alıcı: "+(picks(buyerNames)||"—"),"");
+    L.push("3. Hedef pazarlar ve diller"+srcMark("q3src")+(document.getElementById("q3disc").checked?" [+ fırsat pazarları da önerilecek]":"")+":");
+    L.push("   Pazarlar: "+(val("q3")||"—"));
+    L.push("   Yayın dilleri: "+(picks(langNames)||"—"),"");
+    L.push("4. Ticari sabitler"+srcMark("q4src")+":");
+    L.push("   MOQ: "+(val("q4moq")||"—")+" · Termin: "+(val("q4termin")||"—")+" · Numune: "+(val("q4numune")||"—")+" · Teslim: "+(val("q4teslim")||"—"),"");
+    L.push("5. Sertifika ve belgeler"+srcMark("q5src")+":");
+    L.push("   "+(document.getElementById("q5yok").checked?"Sertifika yok":(val("q5")||"—")),"");
+    L.push("6. Yapılmayanlar / yasaklı iddialar:");
+    L.push("   "+(val("q6")||"—"),"");
+    [["q7","Rakipler"],["q8","Kanıtlanabilir üstünlükler"],["q9","Adı verilebilir referanslar"],["q10","En sık müşteri soruları"]].forEach(function(row,i){
+      var id=row[0], m=radioVal(id+"mode");
+      L.push((i+7)+". "+row[1]+" [mod: "+(qModes[id][m]||"seçilmedi")+"]:");
+      L.push("   "+(val(id)||"—"),"");
+    });
+    L.push("11. Ticari öncelikler:");
+    L.push("   "+(val("q11")||"—"),"");
+    L.push("12. Kapasite ve onay:");
+    L.push("   Aylık kapasite: "+(radioVal("q12cap")||"seçilmedi")+" · Onaylayan: "+(radioVal("q12who")||"seçilmedi")+" · Kanal: "+(picks(chanNames)||"—")+(val("q12")?" · Not: "+val("q12"):""));
+    var out=document.getElementById("out"); out.className="show";
+    document.getElementById("outtext").value=L.join("\n");
+    out.scrollIntoView({behavior:"smooth",block:"nearest"});
+  });
+  document.getElementById("copy").addEventListener("click",function(){
+    var t=document.getElementById("outtext");
+    if(!t.value){document.getElementById("compile").click();}
+    t.select();
+    try{navigator.clipboard.writeText(t.value);}catch(e){try{document.execCommand("copy");}catch(e2){}}
+  });
+  document.getElementById("clear").addEventListener("click",function(){
+    fields.forEach(function(id){document.getElementById(id).value=""});
+    checks.forEach(function(id){document.getElementById(id).checked=false});
+    ["q2t","q12cap","q12who"].forEach(function(n){var r=document.querySelector('input[name="'+n+'"]:checked'); if(r)r.checked=false;});
+    ["q7mode","q8mode","q9mode","q10mode"].forEach(function(n){var s=document.querySelector('input[name="'+n+'"][value="sentez"]'); if(s)s.checked=true;});
+    syncModes();
+    document.getElementById("outtext").value=""; document.getElementById("out").className="";
+    try{localStorage.removeItem("kurulum-anketi");}catch(e){}
+  });
+})();
+</script>
+
+</body>
+</html>
