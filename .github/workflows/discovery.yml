@@ -1,0 +1,56 @@
+# Faz 0 — kaynak keşfi: verilen siteyi nazik tarayıcıyla gezer, TASLAK bilgi
+# paketi üretir ve workflow artifact'i olarak yükler. DEPOYA VERİ YAZMAZ (§9
+# sıfır-başlangıç): taslak yalnız artifact'te yaşar, onay Tur 2'de verilir.
+name: discovery
+on:
+  workflow_dispatch:
+    inputs:
+      site_url:
+        description: "Marka web sitesi (https://...)"
+        required: true
+      max_pages:
+        description: "Sayfa tavanı"
+        default: "30"
+      delay_seconds:
+        description: "İstekler arası bekleme (sn)"
+        default: "3"
+jobs:
+  discovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Keşif taraması (nazik)
+        run: |
+          python -m wizard.discovery.discover "${{ inputs.site_url }}" \
+            --max-pages "${{ inputs.max_pages }}" \
+            --delay "${{ inputs.delay_seconds }}" \
+            --out draft-output --save-pages
+      - name: Özet
+        run: |
+          {
+            echo "## Keşif özeti — ${{ inputs.site_url }}"
+            python - <<'PY'
+          import json
+          f=json.load(open('draft-output/facts.draft.json'))
+          t=json.load(open('draft-output/terms.draft.json'))
+          q=json.load(open('draft-output/open_questions.json'))
+          d=f["_draft"]
+          print(f"- Taranan sayfa: **{d['pages_crawled']}**")
+          print(f"- Marka adı adayı: **{f['brand_name'] or '—'}**")
+          print(f"- Ürün adayı: **{len(f['products'])}** · Sektör adayı: **{len(d['sector_candidates'])}**")
+          print(f"- Sertifika adayı: {', '.join(f['certificates']) or '—'}")
+          print(f"- Terim adayı: **{len(t['terms'])}** ({', '.join(t['languages'])})")
+          print(f"\n### Tur 2 teyit soruları ({len(q)})\n")
+          for i,item in enumerate(q,1):
+              print(f"{i}. **[{item['topic']}]** {item['question']}")
+          PY
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Taslak paketi artifact olarak yükle
+        uses: actions/upload-artifact@v4
+        with:
+          name: brandpack-draft
+          path: draft-output/
+          retention-days: 14
