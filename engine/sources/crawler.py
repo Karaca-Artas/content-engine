@@ -34,7 +34,8 @@ import urllib.request
 import urllib.robotparser
 from html.parser import HTMLParser
 
-DEFAULT_UA = "ContentEngineDiscovery/0.1 (+https://github.com/Karaca-Artas/content-engine; nazik kurulum taramasi)"
+DEFAULT_UA = ("Mozilla/5.0 (compatible; ContentEngineDiscovery/0.1; "
+              "+https://github.com/Karaca-Artas/content-engine)")
 
 # İçerik taşımayan, taranması gereksiz yol kalıpları
 SKIP_PATH = re.compile(
@@ -158,11 +159,16 @@ def _decode(body: bytes, ctype: str) -> str:
     return body.decode("utf-8", errors="replace")
 
 
-def _sitemap_urls(base: str, timeout: int = 20, limit: int = 500) -> list[str]:
-    """sitemap.xml (ve indeks alt haritalarını) oku; bulunamazsa boş liste."""
+def _sitemap_urls(base: str, timeout: int = 20, limit: int = 500,
+                  extra: list[str] | None = None) -> list[str]:
+    """Site haritalarını (ve indeks alt haritalarını) oku; bulunamazsa boş liste."""
     seen: list[str] = []
-    queue = [urllib.parse.urljoin(base, "/sitemap.xml"),
-             urllib.parse.urljoin(base, "/sitemap_index.xml")]
+    queue = list(extra or []) + [
+        urllib.parse.urljoin(base, "/sitemap.xml"),
+        urllib.parse.urljoin(base, "/sitemap_index.xml"),
+        urllib.parse.urljoin(base, "/sitemap-index.xml"),
+        urllib.parse.urljoin(base, "/wp-sitemap.xml"),
+    ]
     tried: set[str] = set()
     while queue and len(seen) < limit:
         sm = queue.pop(0)
@@ -202,15 +208,23 @@ def crawl(config: dict, log=None) -> list[dict]:
     root = urllib.parse.urlsplit(site_url)
     host = _norm_host(root.netloc)
 
-    rp = urllib.robotparser.RobotFileParser()
-    rp.set_url(urllib.parse.urljoin(site_url, "/robots.txt"))
+    # robots.txt kendi UA'mızla okunur (varsayılan python UA bazı WAF'larca engellenir)
+    rp: urllib.robotparser.RobotFileParser | None = urllib.robotparser.RobotFileParser()
+    robots_sitemaps: list[str] = []
     try:
-        rp.read()
-    except Exception:
-        rp = None  # robots okunamadı: kurallar bilinmiyor, nazik varsayılanlarla devam
+        st, body, ctype = _fetch(urllib.parse.urljoin(site_url, "/robots.txt"), timeout)
+        if st == 200:
+            text = _decode(body, ctype)
+            rp.parse(text.splitlines())
+            robots_sitemaps = re.findall(r"(?im)^sitemap:\s*(\S+)", text)
+        else:
+            rp = None
+    except Exception as e:
+        log(f"[crawler] robots.txt okunamadı ({e}) — nazik varsayılanlarla devam")
+        rp = None
 
     queue: list[str] = [site_url + "/"]
-    for u in _sitemap_urls(site_url, timeout):
+    for u in _sitemap_urls(site_url, timeout, extra=robots_sitemaps):
         queue.append(u)
     queue.extend(c.get("extra_seeds", []))
 
@@ -237,10 +251,12 @@ def crawl(config: dict, log=None) -> list[dict]:
         try:
             status, body, ctype = _fetch(url, timeout)
         except urllib.error.HTTPError as e:
+            log(f"[crawler] HATA {e.code} {url}")
             pages.append({"url": url, "status": e.code, "error": "http"})
             time.sleep(delay)
             continue
         except Exception as e:
+            log(f"[crawler] HATA {url}: {str(e)[:120]}")
             pages.append({"url": url, "status": 0, "error": str(e)[:200]})
             time.sleep(delay)
             continue
