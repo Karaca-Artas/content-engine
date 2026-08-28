@@ -1,0 +1,15 @@
+# Kanal C — aylık sentez (İSKELET: şimdilik yalnız elle tetiklenir)
+name: monthly-synthesis
+on:
+  workflow_dispatch: {}
+  # schedule:                    # Faz 3'te açılacak
+  #   - cron: "0 6 1 * *"        # her ayın 1'i 06:00 UTC
+jobs:
+  synthesis:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Sentez (iskelet)
+        run: echo "Faz 3'te doldurulacak — engine/channels/channel_c_synthesis.py"
