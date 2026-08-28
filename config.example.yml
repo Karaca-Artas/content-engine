@@ -1,0 +1,16 @@
+# Kurulum örneği — kopyala: config.yml (gerçek config, marka kopyasında tutulur)
+site:
+  url: "https://www.example.com"
+  languages: ["tr", "en"]        # yayın dilleri
+  score_only_languages: []       # yalnız puanlanan, taslak üretilmeyen diller
+business:
+  model: "b2b"                   # b2b | b2c | karma
+monthly_action_cap: 4            # aylık aksiyon kuyruğu tavanı (kapasiteye göre)
+sources:
+  search_console: { enabled: false, property: "" }
+  ga4: { enabled: false, property_id: "" }
+crawler:
+  concurrency: 2
+  delay_seconds: 3
+  kill_switch_file: ".crawl-stop"
+brandpack_path: "brandpack/live"  # sihirbazın ürettiği gerçek bilgi paketi

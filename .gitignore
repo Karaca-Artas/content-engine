@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.env
+secrets/
+.DS_Store
+# Gerçek marka verisi şablon depoya girmez
+brandpack/live/
