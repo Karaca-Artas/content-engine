@@ -1,0 +1,38 @@
+# Cetvel şablonu — B2B üretici ürün sayfası (100 puan) · şablon sürümü 1.0
+# Bu bir ŞABLONDUR: sihirbaz kriterleri markaya/sektöre uyarlar ve brandpack'e yazar.
+type: product_page
+version: "1.0"
+threshold_publish: 70
+sections:
+  - key: evidence          # Kanıt ve teknik veri
+    weight: 30
+    criteria:
+      - { key: spec_table,   weight: 12, auto: true,  desc: "Teknik ölçü/özellik tablosu" }
+      - { key: tech_drawing, weight: 8,  auto: false, desc: "Teknik çizim veya kesit görseli (gerçekliği model yargılar)" }
+      - { key: material,     weight: 5,  auto: false, desc: "Malzeme/bileşen bilgisi" }
+      - { key: options,      weight: 5,  auto: true,  desc: "Seçenekler (baskı, son işlem, varyant) listelenmiş" }
+  - key: transparency      # Ticari şeffaflık
+    weight: 25
+    criteria:
+      - { key: moq,          weight: 8,  auto: true,  desc: "Asgari sipariş adedi yazıyor" }
+      - { key: lead_time,    weight: 8,  auto: true,  desc: "Termin süresi yazıyor" }
+      - { key: sampling,     weight: 5,  auto: false, desc: "Numune/deneme süreci anlatılmış" }
+      - { key: export_info,  weight: 4,  auto: false, desc: "İhracat/teslim bilgisi (Incoterm vb.)" }
+  - key: trust             # Güven
+    weight: 20
+    criteria:
+      - { key: named_reference, weight: 8, auto: false, desc: "İsimli referans veya vaka" }
+      - { key: certificates,    weight: 6, auto: false, desc: "Sayfayla ilgili sertifikalar" }
+      - { key: real_photos,     weight: 6, auto: false, desc: "Gerçek üretim/ürün fotoğrafı (stok değil — model yargılar)" }
+  - key: search_structure  # Arama, yapı ve dönüşüm
+    weight: 15
+    criteria:
+      - { key: cta,          weight: 5, auto: true,  desc: "Net dönüşüm çağrısı (form/iletişim)" }
+      - { key: title_meta,   weight: 4, auto: true,  desc: "Başlık ve meta, sayfanın gerçek sorgusuyla uyumlu" }
+      - { key: alt_text,     weight: 2, auto: true,  desc: "Görsellerde ürün terimli alt metin" }
+      - { key: internal_links, weight: 2, auto: true, desc: "İlgili sayfalara iç link" }
+      - { key: term_accuracy, weight: 2, auto: false, desc: "Dilin tuzak terimlerinden kaçınılmış (sözlük brandpack'te)" }
+  - key: buyer_questions   # Alıcı sorusu karşılığı
+    weight: 10
+    criteria:
+      - { key: faq_coverage, weight: 10, auto: false, desc: "Müşteri sorusu bilgi dosyasındaki sık soruların cevabı sayfada" }

@@ -1,0 +1,14 @@
+# Cetvel şablonu — blog/rehber yazısı · şablon sürümü 1.0
+type: blog_post
+version: "1.0"
+threshold_publish: 70
+sections:
+  - key: buyer_problem   # Alıcının gerçek problemiyle başlıyor, çözüme bağlıyor
+    weight: 30
+  - key: routing         # İlgili ürün/hizmet sayfasını besliyor
+    weight: 25
+  - key: evidence        # İddialar onaylı gerçeklere ve kaynaklara dayalı
+    weight: 25
+  - key: search_structure
+    weight: 20
+# Kriter dökümü Faz 1'de detaylandırılacak.

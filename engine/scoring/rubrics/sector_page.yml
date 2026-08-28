@@ -1,0 +1,15 @@
+# Cetvel şablonu — sektör/uygulama sayfası · şablon sürümü 1.0
+# Ürün cetvelinden farkı: "ticari şeffaflık" yerine "yönlendirme" (bu sayfa hangi ürüne taşıyor).
+type: sector_page
+version: "1.0"
+threshold_publish: 70
+sections:
+  - key: relevance     # Sektöre özgü kanıt ve örnekler
+    weight: 35
+  - key: routing       # Hangi ürün sayfalarına, ne kadar net yönlendiriyor
+    weight: 25
+  - key: trust
+    weight: 20
+  - key: search_structure
+    weight: 20
+# Kriter dökümü Faz 1'de ürün şablonuyla aynı formatta detaylandırılacak.
