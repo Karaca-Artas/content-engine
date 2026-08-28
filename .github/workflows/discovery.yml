@@ -48,6 +48,23 @@ jobs:
               print(f"{i}. **[{item['topic']}]** {item['question']}")
           PY
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: Taslak JSON'ları özete ekle (Tur 2 girdisi)
+        # Artifact indirilemeyen ortamlar (ör. Cowork konteyneri) taslağı
+        # koşunun Summary sayfasından okuyabilsin diye tam içerik eklenir.
+        # pages.json (ham döküm) büyük olabileceği için özete alınmaz.
+        run: |
+          {
+            echo ""
+            echo "### Taslak dosyalar (tam içerik)"
+            for f in facts.draft.json terms.draft.json open_questions.json; do
+              echo "<details><summary><code>$f</code></summary>"
+              echo ""
+              echo '```json'
+              cat "draft-output/$f"
+              echo '```'
+              echo "</details>"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Taslak paketi artifact olarak yükle
         uses: actions/upload-artifact@v4
         with:
