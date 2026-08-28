@@ -9,8 +9,10 @@ Yeni bir marka kurulumunu SIFIRDAN veriyle yapar. İki turludur:
 - `discovery/` motoru verilen kaynakları (web sitesi, tanıtım broşürü) tarar ve
   taslak bilgi paketi türetir.
 
-**Tur 2 — Dinamik teyit soruları**
+**Tur 2 — Dinamik teyit soruları** (`confirm/`)
 - Taslak paketteki boşluklar ve ÇELİŞKİLER kullanıcıya sorulur (motor varsaymaz — method.md §6).
+- `confirm/` modülü soru gündemini üretir (`prepare`) ve onaylı cevapları
+  `brandpack/live/`e işler (`apply`).
 - Ticari terimler SERP kanıtıyla doğrulanır; tuzak terimler sözlüğe işlenir.
 - Cetvel şablonları markaya uyarlanır.
 
