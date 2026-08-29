@@ -20,12 +20,15 @@ Dönen her kayıt: url, status, lang, title, meta_description, headings
 (h1/h2/h3 listesi), text (görünür metin), links (aynı alan adındaki iç
 bağlantılar), images_alt (alt metinleri), hreflang (dil -> url),
 og_type (og:type meta değeri; WordPress yazılarda "article"),
-published_time (article:published_time meta değeri, varsa).
+published_time (article:published_time meta değeri, varsa),
+ld_types (JSON-LD @type değerleri, küçük harf — og:type yanlış yapılandırılmış
+sitelerde makale sinyali buradan gelir, ör. "article").
 """
 
 from __future__ import annotations
 
 import gzip
+import json
 import os
 import re
 import sys
@@ -65,6 +68,9 @@ class _PageParser(HTMLParser):
         self.links: list[tuple[str, str]] = []  # (href, anchor metni)
         self.images_alt: list[str] = []
         self.hreflang: dict[str, str] = {}
+        self.ld_types: list[str] = []
+        self._in_ldjson = False
+        self._ldjson_buf: list[str] = []
         self.text_parts: list[str] = []
         self._stack: list[str] = []
         self._cur_heading: str | None = None
@@ -102,12 +108,48 @@ class _PageParser(HTMLParser):
             alt = a["alt"].strip()
             if alt:
                 self.images_alt.append(alt)
+        elif tag == "script" and (a.get("type") or "").lower() == "application/ld+json":
+            self._in_ldjson = True
+            self._ldjson_buf = []
         if tag in self._SKIP_TAGS:
             self._stack.append(tag)
         if tag in self._BLOCK_TAGS:
             self.text_parts.append("\n")
 
+    def _flush_ldjson(self) -> None:
+        """JSON-LD bloğundan @type değerlerini topla (bozuk JSON'da regex'e düş)."""
+        raw = "".join(self._ldjson_buf).strip()
+        self._in_ldjson = False
+        self._ldjson_buf = []
+        if not raw:
+            return
+        types: list[str] = []
+
+        def walk(node):
+            if isinstance(node, dict):
+                t = node.get("@type")
+                if isinstance(t, str):
+                    types.append(t)
+                elif isinstance(t, list):
+                    types.extend(x for x in t if isinstance(x, str))
+                for v in node.values():
+                    walk(v)
+            elif isinstance(node, list):
+                for v in node:
+                    walk(v)
+
+        try:
+            walk(json.loads(raw))
+        except Exception:
+            types.extend(re.findall(r'"@type"\s*:\s*"([^"]+)"', raw))
+        for t in types:
+            t = t.strip().lower()
+            if t and t not in self.ld_types:
+                self.ld_types.append(t)
+
     def handle_endtag(self, tag: str) -> None:
+        if tag == "script" and self._in_ldjson:
+            self._flush_ldjson()
         if tag == "title":
             self._in_title = False
         elif tag in ("h1", "h2", "h3"):
@@ -122,6 +164,9 @@ class _PageParser(HTMLParser):
     def handle_data(self, data: str) -> None:
         if self._in_title:  # <head> atlama yığınından ÖNCE — başlık head içindedir
             self.title += data
+            return
+        if self._in_ldjson:  # skip yığınından ÖNCE — script içeriği normalde atlanır
+            self._ldjson_buf.append(data)
             return
         if self._stack:
             return
@@ -308,6 +353,7 @@ def crawl(config: dict, log=None) -> list[dict]:
             "hreflang": parser.hreflang,
             "og_type": parser.og_type,
             "published_time": parser.published_time,
+            "ld_types": parser.ld_types[:20],
         })
         log(f"[crawler] {len(pages)}/{max_pages} {url} ({status})")
         time.sleep(delay)
