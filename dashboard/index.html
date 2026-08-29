@@ -9,7 +9,7 @@
     color-scheme: light;
     --page:#f9f9f7; --surface:#fcfcfb; --ink:#0b0b0b; --ink-2:#52514e; --muted:#898781;
     --grid:#e1e0d9; --axis:#c3c2b7; --border:rgba(11,11,11,0.10);
-    --seq:#2a78d6; --seq-soft:#cde2fb;
+    --seq:#2a78d6; --seq-soft:#cde2fb; --seq2:#8a4fd0;
     --good:#006300; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
     --chip:#f0efec;
   }
@@ -18,7 +18,7 @@
       color-scheme: dark;
       --page:#0d0d0d; --surface:#1a1a19; --ink:#ffffff; --ink-2:#c3c2b7; --muted:#898781;
       --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,0.10);
-      --seq:#3987e5; --seq-soft:#184f95;
+      --seq:#3987e5; --seq-soft:#184f95; --seq2:#a97fe8;
       --good:#0ca30c; --chip:#262624;
     }
   }
@@ -194,7 +194,7 @@ const TYPE_TR = { product_page:"ürün", sector_page:"sektör", blog_post:"blog"
 function typeChip(t){ return '<span class="chip">'+esc(TYPE_TR[t]||t||"?")+'</span>'; }
 function methodChanged(res){
   const m = res && res.changes && res.changes.method_changed;
-  return !!(m && (m.engine || m.rubrics || m.brandpack));
+  return !!(m && (m.engine || m.rubrics || m.brandpack || m.judge));
 }
 
 /* ---------- sözleşme doğrulama ---------- */
@@ -303,8 +303,12 @@ function renderSummary(res){
   const t = res.totals || {}, run = res.run || {};
   $("runMeta").textContent = fmtTs(run.timestamp_utc) + " · " + (run.site || "");
   if (run.site) $("siteLine").innerHTML = "Kalite taraması — <strong>" + esc(run.site) + "</strong>. Pano yalnız gösterir; onay düğmesi taşımaz.";
+  const j = run.judge || {};
   $("tiles").innerHTML =
     tile(fmtPct(t.avg_auto_pct), "ortalama oto-puan", "yalnız otomatik kriterler") +
+    tile(t.avg_judged_pct==null ? "—" : fmtPct(t.avg_judged_pct), "ortalama model-puan",
+         t.avg_judged_pct==null ? (j.enabled===false ? "model yargısı kapalı" : "değerlendirilmedi")
+                                : "oto-puandan ayrı — toplanmaz") +
     tile(fmtNum(t.scored_pages), "puanlanan sayfa", fmtNum(t.unscored_pages) + " sayfa cetvel dışı") +
     tile(fmtNum(t.trap_terms), "tuzak terim", "") +
     tile(fmtNum(t.fact_conflicts), "gerçek çelişkisi", "onaylı gerçeklerle") +
@@ -336,6 +340,17 @@ function renderTrend(){
          '<text x="'+(PL-6)+'" y="'+(y(g)+4)+'" text-anchor="end">'+g+'</text>';
   const pts = runs.map((r,i)=>[x(i), y(r.avg_auto_pct ?? 0)]);
   s += '<polyline fill="none" stroke="var(--seq)" stroke-width="2" points="'+pts.map(p=>p.join(",")).join(" ")+'"/>';
+  // Model-puan eğilimi: oto çizgisinden AYRI, kesikli ikinci çizgi (v1.1 alanı; eski koşularda yok)
+  const jpts = runs.map((r,i)=> r.avg_judged_pct==null ? null : [x(i), y(r.avg_judged_pct), i])
+                   .filter(Boolean);
+  if (jpts.length){
+    s += '<polyline fill="none" stroke="var(--seq2)" stroke-width="2" stroke-dasharray="5 4" points="'+
+         jpts.map(p=>p[0]+','+p[1]).join(" ")+'"/>';
+    jpts.forEach(p=>{
+      s += '<circle cx="'+p[0]+'" cy="'+p[1]+'" r="3.5" fill="var(--seq2)" stroke="var(--surface)" stroke-width="2">'+
+           '<title>'+esc(runs[p[2]].id)+' — model '+fmtPct(runs[p[2]].avg_judged_pct)+'</title></circle>';
+    });
+  }
   runs.forEach((r,i)=>{
     s += '<circle cx="'+pts[i][0]+'" cy="'+pts[i][1]+'" r="4" fill="var(--seq)" stroke="var(--surface)" stroke-width="2">'+
          '<title>'+esc(r.id)+' — '+fmtPct(r.avg_auto_pct)+'</title></circle>';
@@ -345,8 +360,11 @@ function renderTrend(){
       s += '<text x="'+pts[i][0]+'" y="'+(H-6)+'" text-anchor="middle">'+esc(lab)+'</text>';
   });
   s += '</svg>';
-  host.innerHTML = s;
+  host.innerHTML = s + '<p class="kv" style="margin:.2rem 0 0">'+
+    '<span style="color:var(--seq)">●</span> ort. oto-% · '+
+    '<span style="color:var(--seq2)">●</span> ort. model-% (kesikli — ayrı ölçü, toplanmaz)</p>';
   tbl.innerHTML = '<tr><th>Koşu</th><th>Tarih</th><th class="num">Puanlanan</th><th class="num">Ort. oto-%</th>'+
+    '<th class="num">Ort. model-%</th>'+
     '<th class="num">Tuzak</th><th class="num">Çelişki</th><th class="num">Değişen sayfa</th><th></th></tr>' +
     idx.runs.map(r => {
       const res = state.results[r.id];
@@ -356,6 +374,7 @@ function renderTrend(){
                        : '<span class="muted" title="Bu koşunun detay dosyası yüklü değil">detay yüklü değil</span>';
       return '<tr'+cur+'><td><code>'+esc(r.id)+'</code>'+warn+'</td><td>'+fmtTs(r.timestamp_utc)+'</td>'+
         '<td class="num">'+fmtNum(r.scored_pages)+'</td><td class="num">'+fmtPct(r.avg_auto_pct)+'</td>'+
+        '<td class="num">'+(r.avg_judged_pct==null?'<span class="muted">—</span>':fmtPct(r.avg_judged_pct))+'</td>'+
         '<td class="num">'+fmtNum(r.trap_terms)+'</td><td class="num">'+fmtNum(r.fact_conflicts)+'</td>'+
         '<td class="num">'+(r.changed_pages==null?'— <span class="muted">(ilk koşu)</span>':fmtNum(r.changed_pages))+'</td>'+
         '<td>'+link+'</td></tr>';
@@ -370,8 +389,11 @@ function criteriaTable(p){
   const rows = p.criteria.map(c => {
     const pts = c.points==null ? '<span class="muted">değerlendirilmedi</span>'
       : fmtNum(c.points) + ' / ' + fmtNum(c.weight);
+    const kind = c.auto ? 'oto'
+      : (c.judged_by === 'model' ? '<span style="color:var(--seq2)">model</span>'
+                                 : '<span class="muted">model yargısı</span>');
     return '<tr><td><code>'+esc(c.key)+'</code></td>'+
-      '<td>'+(c.auto ? 'oto' : '<span class="muted">model yargısı</span>')+'</td>'+
+      '<td>'+kind+'</td>'+
       '<td class="num">'+pts+'</td>'+
       '<td class="ink2">'+esc(c.note||"")+'</td></tr>';
   }).join("");
@@ -392,17 +414,23 @@ function renderPages(res){
     types.map(t => '<option value="'+esc(t)+'"'+(t===keep?' selected':'')+'>'+esc(TYPE_TR[t]||t)+'</option>').join("");
   let list = tf.value ? scored.filter(p => p.type === tf.value) : scored.slice();
   list.sort((a,b) => ($("sortSel").value==="asc"?1:-1) * ((a.auto_pct??0) - (b.auto_pct??0)));
-  $("pageTable").innerHTML = '<tr><th>Sayfa</th><th>Tip</th><th>Oto-puan</th><th class="num">%</th>'+
-    '<th class="num">Oto p.</th><th class="num">Değerlendirilmemiş</th></tr>' +
+  $("pageTable").innerHTML = '<tr><th>Sayfa</th><th>Tip</th><th>Oto-puan</th><th class="num">Oto %</th>'+
+    '<th class="num">Oto p.</th><th class="num">Model %</th><th class="num">Model p.</th>'+
+    '<th class="num">Değerlendirilmemiş</th></tr>' +
     list.map(p => {
       const w = Math.max(0, Math.min(100, p.auto_pct ?? 0));
+      const jp = p.judged_pct;
       return '<tr><td><a href="'+esc(p.url)+'" target="_blank" rel="noopener" style="color:inherit">'+
         esc(shortUrl(p.url, site))+'</a>'+criteriaTable(p)+'</td>'+
         '<td>'+typeChip(p.type)+'</td>'+
         '<td><div class="bar" title="'+fmtPct(p.auto_pct)+'"><i style="width:'+w+'%"></i></div></td>'+
         '<td class="num">'+fmtPct(p.auto_pct)+'</td>'+
         '<td class="num">'+fmtNum(p.auto_earned)+' / '+fmtNum(p.auto_possible)+'</td>'+
-        '<td class="num"><span class="chip" title="Model yargısı gerektiren kriterlerin toplam ağırlığı — henüz puanlanmadı">'+
+        '<td class="num" style="color:var(--seq2)" title="Model yargısı yüzdesi — oto-%\'den ayrı ölçü, toplanmaz">'+
+          (jp==null?'<span class="muted">—</span>':fmtPct(jp))+'</td>'+
+        '<td class="num">'+(jp==null?'<span class="muted">—</span>'
+          :fmtNum(p.judged_earned)+' / '+fmtNum(p.judged_possible))+'</td>'+
+        '<td class="num"><span class="chip" title="Bu koşuda yargılanmayan kriterlerin toplam ağırlığı (görsel yargısı / eksik veri / model hatası)">'+
           fmtNum(p.unassessed_weight)+' p</span></td></tr>';
     }).join("");
   $("unscored").innerHTML = !unscored.length ? "" :
@@ -436,6 +464,7 @@ function renderChanges(res){
   if (methodChanged(res)) {
     const m = c.method_changed, parts = [];
     if (m.engine) parts.push("motor"); if (m.rubrics) parts.push("cetveller"); if (m.brandpack) parts.push("marka paketi");
+    if (m.judge) parts.push("model yargısı (model/rubrik)");
     h += '<div class="banner warn">⚠️ <strong>Yöntem değişti:</strong> '+parts.join(", ")+
          ' — puan farkları siteden değil yöntem değişikliğinden gelebilir; yorum insana aittir.</div>';
   }
@@ -446,11 +475,13 @@ function renderChanges(res){
   h += listBlock("Kaybolan sayfalar", c.removed_pages, u => '<li>'+esc(shortUrl(u))+'</li>');
   h += listBlock("Tip değişimi", c.type_changes, t =>
     '<li>'+esc(shortUrl(t.url))+': '+esc(TYPE_TR[t.prev]||t.prev)+' → '+esc(TYPE_TR[t.new]||t.new)+'</li>');
-  h += listBlock("Puan değişimi (oto-%)", c.score_changes, t => {
+  const pctLine = t => {
     const up = t.delta_pct > 0;
     return '<li>'+esc(shortUrl(t.url))+': '+fmtPct(t.prev_pct)+' → '+fmtPct(t.new_pct)+
       ' <span class="'+(up?'delta-up':'delta-down')+'">'+(up?'▲':'▼')+' '+fmtNum(Math.abs(t.delta_pct))+'</span></li>';
-  });
+  };
+  h += listBlock("Puan değişimi (oto-%)", c.score_changes, pctLine);
+  h += listBlock("Model puanı değişimi (model-% — oto'dan ayrı)", c.judged_score_changes, pctLine);
   h += listBlock("Açılan bulgular", c.new_findings, findingLine);
   h += listBlock("Kapanan bulgular", c.resolved_findings, findingLine);
   $("changes").innerHTML = h;
@@ -463,9 +494,14 @@ function renderFindings(res){
 function renderMeta(res){
   const r = res.run || {};
   const rv = r.rubric_versions ? Object.entries(r.rubric_versions).map(([k,v])=>esc(k)+" v"+esc(v)).join(" · ") : "—";
+  const j = r.judge || {};
+  const jtxt = j.enabled
+    ? "model yargısı: <code>"+esc(j.model||"?")+"</code> rubrik v"+esc(j.prompt_version||"?")+
+      (j.failures?" ("+fmtNum(j.failures)+" hata)":"")
+    : "model yargısı: kapalı"+(j.reason?" ("+esc(j.reason)+")":"");
   $("metaLine").innerHTML = "Sözleşme: <code>"+esc(res.contract)+" v"+esc(res.contract_version)+"</code> · "+
     "motor <code>"+esc(r.engine_rev||"—")+"</code> · marka paketi <code>"+esc(r.brandpack_rev||"—")+"</code> · "+
-    "cetveller: "+rv+(r.rubric_note?" ("+esc(r.rubric_note)+")":"")+
+    "cetveller: "+rv+(r.rubric_note?" ("+esc(r.rubric_note)+")":"")+" · "+jtxt+
     (r.workflow_run?" · Actions koşusu #"+esc(r.workflow_run):"");
 }
 
