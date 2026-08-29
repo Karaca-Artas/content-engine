@@ -3,8 +3,9 @@
 Cetveller engine/scoring/rubrics/ altındaki jenerik ŞABLONLARDAN gelir; sihirbaz bunları
 markaya uyarlayıp brandpack'e yazar. Puanlama her zaman brandpack'teki uyarlanmış cetvelle
 yapılır ve cetvel sürümü çıktıya damgalanır (sürüm değişirse tüm sayfalar yeniden puanlanır).
-NOT (v1): uyarlanmış cetvel henüz üretilmediği için şablon cetvel OLDUĞU GİBİ kullanılır ve
-çıktı "şablon cetvel, uyarlanmamış" olarak damgalanır.
+Adım 11'den itibaren sihirbaz (wizard/rubrics/adapt.py) cetveli markaya uyarlayıp pakete
+yazar; motor pakette uyarlanmış cetvel bulursa onu kullanır ve damga cetvel meta'sından
+türetilir (rubric_note). Uyarlanmış cetvel yoksa şablon, "uyarlanmamış" notuyla koşar.
 
 İki tip kriter:
 - otomatik ölçülen: bu sürümde PUANLANIR (aşağıdaki AUTO_CHECKS; bir kısmı vekil/proxy
@@ -285,6 +286,20 @@ def find_fact_conflicts(page: dict, brandpack: dict) -> list[dict]:
 
 # ----------------------------------------------------------------- puanlama
 
+def rubric_note(rubric: dict) -> str:
+    """Cetvelin damgası — sihirbaz uyarladıysa 'uyarlanmış', değilse 'şablon'.
+
+    Adım 11'e kadar not sabitti ("şablon cetvel, uyarlanmamış"); artık cetvelin
+    kendi meta'sından türetilir. Uyarlanmış cetvel brandpack'te yaşar ve
+    `adapted: true` + `adapted_from_template` taşır (wizard/rubrics/adapt.py).
+    """
+    if rubric.get("adapted"):
+        return (f"markaya uyarlanmış cetvel (şablon "
+                f"{rubric.get('adapted_from_template', '?')} → "
+                f"{rubric.get('version', '?')})")
+    return "şablon cetvel, uyarlanmamış"
+
+
 def score_page(page: dict, rubric: dict, brandpack: dict) -> dict:
     """Tek sayfayı cetvelle puanlar; kriter bazında döküm döndürür.
 
@@ -314,7 +329,7 @@ def score_page(page: dict, rubric: dict, brandpack: dict) -> dict:
         "url": page.get("url", ""),
         "rubric_type": rubric.get("type", ""),
         "rubric_version": str(rubric.get("version", "")),
-        "rubric_note": "şablon cetvel, uyarlanmamış (v1)",
+        "rubric_note": rubric_note(rubric),
         "has_criteria": has_criteria,
         "auto_earned": round(auto_earned, 1),
         "auto_possible": round(auto_possible, 1),

@@ -1,4 +1,9 @@
-"""Kalite taraması koşucusu — Faz 1 (Adım 10: model yargısı eklendi).
+"""Kalite taraması koşucusu — Faz 1 (Adım 11: uyarlanmış cetvel katmanı eklendi).
+
+Cetvel seçimi: şablonlar (--rubrics-dir) yüklenir; pakette uyarlanmış cetvel
+varsa (<brandpack-dir>/rubrics veya --brand-rubrics-dir) tip bazında şablonun
+yerine geçer ve damga "markaya uyarlanmış" olur. Cetvel sürümü değişince
+compare.py `method_changed.rubrics` üretir (dürüstlük kuralı).
 
 Siteyi nazik tarayıcıyla gezer, sayfaları tipine göre sınıflandırır, canlı
 brandpack ile cetvel puanı üretir, markdown rapor (Actions Summary) yazar ve
@@ -79,6 +84,32 @@ def load_rubrics(path: str) -> dict:
             if isinstance(r, dict) and r.get("type"):
                 rubrics[r["type"]] = r
     return rubrics
+
+
+def load_effective_rubrics(templates_dir: str, brand_rubrics_dir: str) -> dict:
+    """Şablonlar + pakette uyarlanmış cetvel katmanı (Adım 11).
+
+    Önce şablonlar yüklenir; paket dizininde (varsayılan
+    <brandpack-dir>/rubrics) uyarlanmış cetvel VARSA tip bazında şablonun
+    yerine geçer. Uyarlanmış cetveli olmayan tip şablonla, "uyarlanmamış"
+    notuyla koşmaya devam eder — koşu asla düşmez.
+    """
+    rubrics = load_rubrics(templates_dir)
+    if brand_rubrics_dir and os.path.isdir(brand_rubrics_dir):
+        rubrics.update(load_rubrics(brand_rubrics_dir))
+    return rubrics
+
+
+def run_rubric_note(rubrics: dict) -> str:
+    """Koşunun cetvel damgası — hangi tipler uyarlanmış, hangileri şablon."""
+    adapted = sorted(t for t, r in rubrics.items() if r.get("adapted"))
+    plain = sorted(t for t, r in rubrics.items() if not r.get("adapted"))
+    if not adapted:
+        return "şablon cetveller, uyarlanmamış"
+    note = "markaya uyarlanmış cetveller: " + ", ".join(adapted)
+    if plain:
+        note += " · şablon (uyarlanmamış): " + ", ".join(plain)
+    return note
 
 
 def _is_article(page: dict) -> bool:
@@ -167,7 +198,7 @@ def build_scan(site: str, results: list[dict], other_findings: list[dict],
             "brandpack_rev": args.brandpack_rev,
             "workflow_run": args.run_number or None,
             "rubric_versions": {t: str(r.get("version", "")) for t, r in rubrics.items()},
-            "rubric_note": "şablon cetvel, uyarlanmamış (v1)",
+            "rubric_note": run_rubric_note(rubrics),
             "judge": judge_info or {"enabled": False,
                                     "reason": "model yargısı istenmedi (--judge yok)"},
             "max_pages": args.max_pages,
@@ -299,7 +330,8 @@ def render_changes(changes: dict | None) -> list[str]:
 def render_markdown(site: str, results: list[dict], other_findings: list[dict],
                     engine_rev: str, brandpack_rev: str,
                     changes: dict | None = None, persisted: bool = False,
-                    judge_info: dict | None = None) -> str:
+                    judge_info: dict | None = None,
+                    rubrics: dict | None = None) -> str:
     scored = [r for r in results if r["has_criteria"]]
     scored.sort(key=pct)
     if judge_info and judge_info.get("enabled"):
@@ -315,7 +347,7 @@ def render_markdown(site: str, results: list[dict], other_findings: list[dict],
         "",
         f"- Site: {site}",
         f"- Motor sürümü: `{engine_rev}` · Brandpack sürümü: `{brandpack_rev}`",
-        "- Cetvel: **şablon v1.x, uyarlanmamış**.",
+        f"- Cetvel: **{run_rubric_note(rubrics or {})}**.",
         judge_line,
         ("- Sonuçlar depoya yazıldı: `results/quality/` (sözleşme v" + CONTRACT_VERSION + ")."
          if persisted else "- Sonuçlar depoya YAZILMADI (yalnız bu rapor)."),
@@ -373,7 +405,11 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--site", required=True)
     ap.add_argument("--brandpack-dir", required=True)
-    ap.add_argument("--rubrics-dir", required=True)
+    ap.add_argument("--rubrics-dir", required=True,
+                    help="şablon cetvel dizini (engine/scoring/rubrics)")
+    ap.add_argument("--brand-rubrics-dir", default="",
+                    help="paketteki uyarlanmış cetvel dizini; boşsa "
+                         "<brandpack-dir>/rubrics otomatik denenir (Adım 11)")
     ap.add_argument("--max-pages", type=int, default=30)
     ap.add_argument("--delay", type=float, default=3.0)
     ap.add_argument("--summary", default="")
@@ -395,7 +431,9 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
 
     brandpack = load_brandpack(args.brandpack_dir)
-    rubrics = load_rubrics(args.rubrics_dir)
+    brand_rubrics_dir = (args.brand_rubrics_dir
+                         or os.path.join(args.brandpack_dir, "rubrics"))
+    rubrics = load_effective_rubrics(args.rubrics_dir, brand_rubrics_dir)
     if args.pages_json:
         with open(args.pages_json, encoding="utf-8") as f:
             pages = json.load(f)
@@ -447,7 +485,7 @@ def main(argv: list[str] | None = None) -> int:
     md = render_markdown(args.site, results, other_findings,
                          args.engine_rev, args.brandpack_rev,
                          changes=changes, persisted=bool(args.out_dir),
-                         judge_info=judge_info)
+                         judge_info=judge_info, rubrics=rubrics)
     if args.summary:
         with open(args.summary, "a", encoding="utf-8") as f:
             f.write(md)

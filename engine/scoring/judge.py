@@ -179,8 +179,15 @@ class Judge:
         for crit in send:
             anchors = (self.prompts["criteria"].get(crit["key"]) or {}).get("anchors") or []
             a_txt = " · ".join(f"{a['ratio']}: {a['desc']}" for a in anchors)
-            crit_lines.append(f"- {crit['key']} (ağırlık {crit['weight']}): "
-                              f"{crit.get('desc', '')}\n  Çıpalar: {a_txt}")
+            line = (f"- {crit['key']} (ağırlık {crit['weight']}): "
+                    f"{crit.get('desc', '')}\n  Çıpalar: {a_txt}")
+            # Uyarlanmış cetvelden gelen markaya özel bağlam (Adım 11):
+            # çıpalar SABİT kalır, bağlam kriterin değerlendirme çerçevesini
+            # markaya bağlar. Cetvel sürümü değiştiği için bu ekleme
+            # method_changed.rubrics kapsamında raporlanır.
+            if crit.get("brand_context"):
+                line += f"\n  Marka bağlamı: {crit['brand_context']}"
+            crit_lines.append(line)
         return (
             f"Sayfa tipi: {rubric.get('type', '')}\n\n"
             "=== MARKA BAĞLAMI (onaylı gerçekler + terimler; bunun dışında gerçek üretme) ===\n"
