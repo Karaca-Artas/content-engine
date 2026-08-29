@@ -1,11 +1,18 @@
-"""Kalite taraması koşucusu — Faz 1 (Adım 8: sonuçlar depoya yazılır).
+"""Kalite taraması koşucusu — Faz 1 (Adım 10: model yargısı eklendi).
 
 Siteyi nazik tarayıcıyla gezer, sayfaları tipine göre sınıflandırır, canlı
 brandpack ile cetvel puanı üretir, markdown rapor (Actions Summary) yazar ve
---out-dir verilirse sonuçları veri sözleşmesine (docs/results-contract.md v1.0)
+--out-dir verilirse sonuçları veri sözleşmesine (docs/results-contract.md v1.1)
 uygun JSON olarak marka deposuna yazar: latest.json + history/<id>.json +
 index.json. Önceki latest.json bulunursa koşular arası fark (`changes` bloğu)
 engine.scoring.compare ile üretilir.
+
+--judge verilirse auto olmayan kriterler sabit rubrikle (judge_prompts.yml)
+modele gönderilir (engine.scoring.judge; anahtar ANTHROPIC_API_KEY ortam
+değişkeninden). Model puanı oto puandan AYRI alanlarda tutulur
+(judged_earned/judged_possible/judged_pct) ve asla tek puanda birleştirilmez.
+Anahtar yoksa veya model erişilemezse koşu düşmez; kriterler "değerlendirilmedi"
+kalır ve nedeni rapora yazılır.
 
 Sınıflandırma (jenerik; marka bilgisi yalnız brandpack'ten gelir):
 1. Arşiv/liste kalıbı (kategori, yazar, sayfalama, blog dizini) → "archive": liste
@@ -49,7 +56,8 @@ from engine.scoring.scorer import (  # noqa: E402
 )
 
 ARTICLE_LD_TYPES = {"article", "blogposting", "newsarticle", "techarticle"}
-CONTRACT_VERSION = "1.0"
+CONTRACT_VERSION = "1.1"
+DEFAULT_JUDGE_PROMPTS = os.path.join(os.path.dirname(__file__), "judge_prompts.yml")
 
 
 def load_brandpack(path: str) -> dict:
@@ -105,11 +113,19 @@ def pct(row: dict) -> float:
     return 100.0 * row["auto_earned"] / row["auto_possible"] if row["auto_possible"] else 0.0
 
 
+def judged_pct(row: dict) -> float | None:
+    """Model yargısı yüzdesi — oto yüzdesinden AYRI; yargı yoksa None."""
+    poss = row.get("judged_possible")
+    if not poss:
+        return None
+    return round(100.0 * (row.get("judged_earned") or 0.0) / poss, 1)
+
+
 # ------------------------------------------------- sözleşme (JSON) üretimi
 
 def build_scan(site: str, results: list[dict], other_findings: list[dict],
-               rubrics: dict, args) -> dict:
-    """Sonuç listesini veri sözleşmesi v1.0 yapısına çevirir (changes hariç)."""
+               rubrics: dict, args, judge_info: dict | None = None) -> dict:
+    """Sonuç listesini veri sözleşmesi v1.1 yapısına çevirir (changes hariç)."""
     now = _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0)
     run_id = args.run_id or now.strftime("%Y%m%dT%H%M%SZ")
     pages, findings = [], list(other_findings)
@@ -123,12 +139,16 @@ def build_scan(site: str, results: list[dict], other_findings: list[dict],
             "auto_earned": r["auto_earned"] if scored else None,
             "auto_possible": r["auto_possible"] if scored else None,
             "auto_pct": round(pct(r), 1) if scored and r["auto_possible"] else None,
+            "judged_earned": r.get("judged_earned") if scored else None,
+            "judged_possible": r.get("judged_possible") if scored else None,
+            "judged_pct": judged_pct(r) if scored else None,
             "unassessed_weight": r["unassessed_weight"] if scored else None,
             "criteria": r.get("criteria") or [],
         }
         pages.append(row)
         findings.extend(r.get("findings") or [])
     scored_rows = [p for p in pages if p["scored"]]
+    judged_rows = [p for p in scored_rows if p["judged_pct"] is not None]
     by_type: dict = {}
     for p in scored_rows:
         b = by_type.setdefault(p["type"], {"pages": 0, "sum_pct": 0.0})
@@ -148,6 +168,8 @@ def build_scan(site: str, results: list[dict], other_findings: list[dict],
             "workflow_run": args.run_number or None,
             "rubric_versions": {t: str(r.get("version", "")) for t, r in rubrics.items()},
             "rubric_note": "şablon cetvel, uyarlanmamış (v1)",
+            "judge": judge_info or {"enabled": False,
+                                    "reason": "model yargısı istenmedi (--judge yok)"},
             "max_pages": args.max_pages,
             "pages_ok": len(results),
         },
@@ -156,6 +178,9 @@ def build_scan(site: str, results: list[dict], other_findings: list[dict],
             "unscored_pages": len(pages) - len(scored_rows),
             "avg_auto_pct": (round(sum(p["auto_pct"] or 0 for p in scored_rows)
                                    / len(scored_rows), 1) if scored_rows else None),
+            "judged_pages": len(judged_rows),
+            "avg_judged_pct": (round(sum(p["judged_pct"] for p in judged_rows)
+                                     / len(judged_rows), 1) if judged_rows else None),
             "by_type": by_type,
             "trap_terms": sum(1 for f in findings if f.get("kind") == "trap_term"),
             "fact_conflicts": sum(1 for f in findings if f.get("kind") == "fact_conflict"),
@@ -206,6 +231,7 @@ def write_outputs(scan: dict, out_dir: str) -> dict:
         "brandpack_rev": run["brandpack_rev"],
         "scored_pages": scan["totals"]["scored_pages"],
         "avg_auto_pct": scan["totals"]["avg_auto_pct"],
+        "avg_judged_pct": scan["totals"].get("avg_judged_pct"),
         "trap_terms": scan["totals"]["trap_terms"],
         "fact_conflicts": scan["totals"]["fact_conflicts"],
         "changed_pages": (None if scan["changes"].get("first_run")
@@ -240,21 +266,29 @@ def render_changes(changes: dict | None) -> list[str]:
                      "yöntem değişikliğinden gelebilir; yorum insan kararıdır.")
         lines.append("")
     s = changes["summary"]
-    lines.append(f"Önceki koşu: `{changes.get('prev_run_id')}` · puanı değişen sayfa: "
-                 f"{s['pages_changed']} · yeni sayfa: {s['new_pages']} · kaybolan: "
+    lines.append(f"Önceki koşu: `{changes.get('prev_run_id')}` · oto puanı değişen sayfa: "
+                 f"{s['pages_changed']} · model puanı değişen: "
+                 f"{s.get('judged_pages_changed', 0)} · yeni sayfa: {s['new_pages']} · kaybolan: "
                  f"{s['removed_pages']} · yeni bulgu: {s['new_findings']} · kapanan bulgu: "
                  f"{s['resolved_findings']}")
     lines.append("")
     if changes["score_changes"]:
-        lines += ["| Sayfa | Önceki % | Yeni % | Δ |", "|---|---|---|---|"]
+        lines += ["Oto-% değişimi:", "", "| Sayfa | Önceki % | Yeni % | Δ |", "|---|---|---|---|"]
         lines += [f"| {c['url']} | {c['prev_pct']} | {c['new_pct']} | "
                   f"{c['delta_pct']:+.1f} |" for c in changes["score_changes"]]
+        lines.append("")
+    if changes.get("judged_score_changes"):
+        lines += ["Model-% değişimi (oto'dan ayrı):", "",
+                  "| Sayfa | Önceki % | Yeni % | Δ |", "|---|---|---|---|"]
+        lines += [f"| {c['url']} | {c['prev_pct']} | {c['new_pct']} | "
+                  f"{c['delta_pct']:+.1f} |" for c in changes["judged_score_changes"]]
         lines.append("")
     for c in changes["type_changes"]:
         lines.append(f"- tip değişti: {c['url']} — {c['prev']} → {c['new']}")
     lines += [f"- YENİ bulgu: {_fmt_finding(f)}" for f in changes["new_findings"]]
     lines += [f"- KAPANDI: {_fmt_finding(f)}" for f in changes["resolved_findings"]]
-    if not (changes["score_changes"] or changes["type_changes"] or
+    if not (changes["score_changes"] or changes.get("judged_score_changes") or
+            changes["type_changes"] or
             changes["new_findings"] or changes["resolved_findings"] or
             changes["new_pages"] or changes["removed_pages"]):
         lines.append("Değişiklik yok — iki koşu aynı sonucu verdi.")
@@ -264,16 +298,25 @@ def render_changes(changes: dict | None) -> list[str]:
 
 def render_markdown(site: str, results: list[dict], other_findings: list[dict],
                     engine_rev: str, brandpack_rev: str,
-                    changes: dict | None = None, persisted: bool = False) -> str:
+                    changes: dict | None = None, persisted: bool = False,
+                    judge_info: dict | None = None) -> str:
     scored = [r for r in results if r["has_criteria"]]
     scored.sort(key=pct)
+    if judge_info and judge_info.get("enabled"):
+        judge_line = (f"- Model yargısı: **açık** — model `{judge_info['model']}`, "
+                      f"rubrik v{judge_info['prompt_version']}, "
+                      f"{judge_info['requests']} istek, {judge_info['failures']} hata. "
+                      "Model puanı oto puandan AYRI sütunda; ikisi toplanmaz.")
+    else:
+        reason = (judge_info or {}).get("reason", "model yargısı istenmedi")
+        judge_line = f"- Model yargısı: kapalı ({reason}); model yargılı kriterler \"değerlendirilmedi\"."
     lines = [
         "## Kalite taraması (Faz 1)",
         "",
         f"- Site: {site}",
         f"- Motor sürümü: `{engine_rev}` · Brandpack sürümü: `{brandpack_rev}`",
-        "- Cetvel: **şablon v1.x, uyarlanmamış** · yalnız otomatik kriterler puanlandı;",
-        "  model yargılı kriterler \"değerlendirilmedi\" (ağırlıkları ayrı sütunda).",
+        "- Cetvel: **şablon v1.x, uyarlanmamış**.",
+        judge_line,
         ("- Sonuçlar depoya yazıldı: `results/quality/` (sözleşme v" + CONTRACT_VERSION + ")."
          if persisted else "- Sonuçlar depoya YAZILMADI (yalnız bu rapor)."),
         "",
@@ -282,19 +325,27 @@ def render_markdown(site: str, results: list[dict], other_findings: list[dict],
     lines += [
         f"### Cetvelle puanlanan sayfalar ({len(scored)})",
         "",
-        "| Sayfa | Tip | Oto. puan | Oto. tavan | % | Değerlendirilmeyen ağırlık |",
-        "|---|---|---|---|---|---|",
+        "| Sayfa | Tip | Oto. puan | Oto. % | Model puanı | Model % | Değerlendirilmeyen ağırlık |",
+        "|---|---|---|---|---|---|---|",
     ]
     for r in scored:
+        jp = judged_pct(r)
+        j_pts = (f"{r.get('judged_earned')} / {r.get('judged_possible')}"
+                 if jp is not None else "—")
+        j_pct = f"{jp:.0f}%" if jp is not None else "—"
         lines.append(
-            f"| {r['url']} | {r['rubric_type']} | {r['auto_earned']} | "
-            f"{r['auto_possible']} | {pct(r):.0f}% | {r['unassessed_weight']} |")
+            f"| {r['url']} | {r['rubric_type']} | {r['auto_earned']} / "
+            f"{r['auto_possible']} | {pct(r):.0f}% | {j_pts} | {j_pct} | "
+            f"{r['unassessed_weight']} |")
     lines += ["", "### En zayıf 5 sayfa (otomatik kriter yüzdesine göre)", ""]
     for r in scored[:5]:
-        lines.append(f"**{r['url']}** — %{pct(r):.0f}")
+        jp = judged_pct(r)
+        jtxt = f" · model %{jp:.0f}" if jp is not None else ""
+        lines.append(f"**{r['url']}** — oto %{pct(r):.0f}{jtxt}")
         for c in r["criteria"]:
-            if c["auto"] and (c["ratio"] or 0) < 1.0:
-                lines.append(f"- {c['key']} ({c['points']}/{c['weight']}): {c['note']}")
+            if (c["ratio"] or 0) < 1.0 and c["points"] is not None:
+                kind = "oto" if c["auto"] else "model"
+                lines.append(f"- {c['key']} [{kind}] ({c['points']}/{c['weight']}): {c['note']}")
         lines.append("")
     findings = [f for r in results for f in r["findings"]] + other_findings
     traps = [f for f in findings if f["kind"] == "trap_term"]
@@ -334,6 +385,13 @@ def main(argv: list[str] | None = None) -> int:
                     help="sonuç JSON'larının yazılacağı dizin (örn. results/quality); "
                          "boşsa depoya yazılmaz, yalnız rapor üretilir")
     ap.add_argument("--pages-json", default="", help="test/tekrar için hazır tarama dökümü")
+    ap.add_argument("--judge", action="store_true",
+                    help="auto olmayan kriterleri sabit rubrikle modele puanlat "
+                         "(ANTHROPIC_API_KEY ortam değişkeni gerekir)")
+    ap.add_argument("--judge-model", default="",
+                    help="model kimliği (boşsa engine.scoring.judge varsayılanı)")
+    ap.add_argument("--judge-prompts", default=DEFAULT_JUDGE_PROMPTS,
+                    help="sabit rubrik dosyası (judge_prompts.yml)")
     args = ap.parse_args(argv)
 
     brandpack = load_brandpack(args.brandpack_dir)
@@ -346,7 +404,7 @@ def main(argv: list[str] | None = None) -> int:
                        "crawler": {"delay_seconds": args.delay,
                                    "max_pages": args.max_pages}})
 
-    results, other_findings = [], []
+    results, other_findings, scored_pairs = [], [], []
     for page in pages:
         if page.get("status") != 200:
             continue
@@ -355,6 +413,7 @@ def main(argv: list[str] | None = None) -> int:
         if rubric:
             results.append(score_page(page, rubric, brandpack))
             results[-1]["rubric_type"] = ptype
+            scored_pairs.append((results[-1], page, rubric))
         else:
             other_findings += find_trap_terms(page, brandpack)
             other_findings += find_fact_conflicts(page, brandpack)
@@ -362,14 +421,33 @@ def main(argv: list[str] | None = None) -> int:
                             "has_criteria": False, "auto_earned": 0, "auto_possible": 0,
                             "unassessed_weight": 0, "criteria": [], "findings": []})
 
+    judge_info = None
+    if args.judge:
+        from engine.scoring.judge import DEFAULT_MODEL, Judge, load_prompts
+        api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+        if not api_key:
+            judge_info = {"enabled": False,
+                          "reason": "ANTHROPIC_API_KEY tanımlı değil — model yargısı atlandı"}
+        else:
+            prompts = load_prompts(args.judge_prompts)
+            judge = Judge(prompts, model=args.judge_model or DEFAULT_MODEL,
+                          api_key=api_key)
+            for row, page, rubric in scored_pairs:
+                judge.judge_page(row, page, brandpack, rubric)
+            judge_info = {"enabled": True, "model": judge.model,
+                          "prompt_version": str(prompts["version"]),
+                          "requests": judge.requests, "failures": judge.failures}
+
     changes = None
     if args.out_dir:
-        scan = build_scan(args.site, results, other_findings, rubrics, args)
+        scan = build_scan(args.site, results, other_findings, rubrics, args,
+                          judge_info=judge_info)
         changes = write_outputs(scan, args.out_dir)
 
     md = render_markdown(args.site, results, other_findings,
                          args.engine_rev, args.brandpack_rev,
-                         changes=changes, persisted=bool(args.out_dir))
+                         changes=changes, persisted=bool(args.out_dir),
+                         judge_info=judge_info)
     if args.summary:
         with open(args.summary, "a", encoding="utf-8") as f:
             f.write(md)

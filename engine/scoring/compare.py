@@ -12,7 +12,9 @@ puan değişimi siteden değil yöntem değişikliğinden gelmiş olabilir ve
 yorum insana bırakılır.
 
 Jenerik motor kodu — marka bilgisi içermez (docs/method.md §9).
-Veri sözleşmesi: docs/results-contract.md (v1.0).
+Veri sözleşmesi: docs/results-contract.md (v1.1) — model yargısı (Adım 10):
+model kimliği veya rubrik sürümü değişirse `method_changed.judge` true olur;
+model puan farkları `judged_score_changes` listesinde oto farklardan AYRI durur.
 """
 
 from __future__ import annotations
@@ -45,6 +47,21 @@ def _pct(p: dict):
     return round(100.0 * (p.get("auto_earned") or 0) / poss, 1) if poss else None
 
 
+def _judged_pct(p: dict):
+    if not p.get("scored"):
+        return None
+    poss = p.get("judged_possible") or 0
+    return round(100.0 * (p.get("judged_earned") or 0) / poss, 1) if poss else None
+
+
+def _judge_sig(run: dict):
+    """Yargı yönteminin kimliği: (model, rubrik sürümü); kapalıysa None."""
+    j = run.get("judge") or {}
+    if not j.get("enabled"):
+        return None
+    return (j.get("model"), j.get("prompt_version"))
+
+
 def diff(prev: dict | None, new: dict) -> dict:
     """İki tarama sonucunun farkı → `changes` bloğu (sözleşme v1.0).
 
@@ -58,7 +75,7 @@ def diff(prev: dict | None, new: dict) -> dict:
     pp, np_ = _pages_by_url(prev), _pages_by_url(new)
     prev_urls, new_urls = set(pp), set(np_)
 
-    type_changes, score_changes = [], []
+    type_changes, score_changes, judged_score_changes = [], [], []
     for url in sorted(prev_urls & new_urls):
         a, b = pp[url], np_[url]
         if a.get("type") != b.get("type"):
@@ -67,7 +84,12 @@ def diff(prev: dict | None, new: dict) -> dict:
         if pa is not None and pb is not None and abs(pb - pa) >= 0.1:
             score_changes.append({"url": url, "prev_pct": pa, "new_pct": pb,
                                   "delta_pct": round(pb - pa, 1)})
+        ja, jb = _judged_pct(a), _judged_pct(b)
+        if ja is not None and jb is not None and abs(jb - ja) >= 0.1:
+            judged_score_changes.append({"url": url, "prev_pct": ja, "new_pct": jb,
+                                         "delta_pct": round(jb - ja, 1)})
     score_changes.sort(key=lambda r: -abs(r["delta_pct"]))
+    judged_score_changes.sort(key=lambda r: -abs(r["delta_pct"]))
 
     prev_f = {finding_key(f): f for f in prev.get("findings", [])}
     new_f = {finding_key(f): f for f in new.get("findings", [])}
@@ -78,6 +100,9 @@ def diff(prev: dict | None, new: dict) -> dict:
         "engine": prev_run.get("engine_rev") != new_run.get("engine_rev"),
         "rubrics": prev_run.get("rubric_versions") != new_run.get("rubric_versions"),
         "brandpack": prev_run.get("brandpack_rev") != new_run.get("brandpack_rev"),
+        # model veya sabit rubrik sürümü değişti / yargı açılıp kapandı →
+        # model puan farkları yöntemden gelebilir (dürüstlük kuralı)
+        "judge": _judge_sig(prev_run) != _judge_sig(new_run),
     }
     return {
         "first_run": False,
@@ -88,10 +113,12 @@ def diff(prev: dict | None, new: dict) -> dict:
         "removed_pages": sorted(prev_urls - new_urls),
         "type_changes": type_changes,
         "score_changes": score_changes,
+        "judged_score_changes": judged_score_changes,
         "new_findings": new_findings,
         "resolved_findings": resolved,
         "summary": {
             "pages_changed": len(score_changes),
+            "judged_pages_changed": len(judged_score_changes),
             "new_pages": len(new_urls - prev_urls),
             "removed_pages": len(prev_urls - new_urls),
             "new_findings": len(new_findings),

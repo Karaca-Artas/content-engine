@@ -1,0 +1,91 @@
+# Model yargısı sabit rubriği — sürüm 1.0 (Adım 10)
+#
+# Bu dosya SABİT rubriktir: model yargılı kriterlerin puan çıpaları burada yaşar.
+# Serbest bırakılırsa model her koşuda farklı şey söyler ve koşular kıyaslanamaz;
+# bu yüzden çıpalar dosyada sürümlenir. Dosyanın `version` alanı her koşuya
+# damgalanır; çıpalar veya sistem talimatı değişirse sürüm ARTAR ve compare.py
+# `method_changed.judge` bayrağını üretir (docs/method.md dürüstlük kuralı).
+#
+# Jenerik motor dosyası — marka bilgisi içermez (docs/method.md §9); markaya
+# özel her şey (onaylı gerçekler, terimler, referans listesi) çağrı sırasında
+# brandpack'ten eklenir.
+version: "1.0"
+
+system: |
+  Sen B2B içerik kalitesi değerlendiricisisin. Görevin, sana verilen SABİT
+  rubrikteki kriterleri, yalnız sana verilen sayfa kanıtına ve marka bağlamına
+  dayanarak puanlamaktır.
+
+  Kurallar:
+  - Her kriter için puan yalnız şu üç değerden biri olabilir: 0, 0.5, 1.
+    Her kriterin çıpaları verilir; en yakın çıpayı seç, ara değer üretme.
+  - Kanıt sayfa metninde yoksa puan 0'dır. Tahmin etme, iyimserlik yapma;
+    sayfada OLMAYAN bir şeye puan verme.
+  - Marka bağlamındaki onaylı gerçeklerle çelişen iddia gördüğünde bunu
+    ilgili kriterin gerekçesinde belirt; kendi başına yeni gerçek üretme.
+  - Her kriter için gerekçe: sayfadan kısa bir kanıt alıntısı veya tek
+    cümlelik gerekçe, en çok 25 kelime, Türkçe.
+  - Yanıtın SADECE geçerli JSON olsun; başka hiçbir metin, açıklama veya
+    kod bloğu işareti ekleme. Biçim:
+    {"criteria": {"<kriter_anahtari>": {"ratio": 0|0.5|1, "evidence": "<gerekçe>"}}}
+
+# Kriter çıpaları. Anahtarlar cetvel şablonlarındaki kriter anahtarlarıdır;
+# sihirbaz cetveli markaya uyarlarsa aynı anahtarlar geçerli kalır.
+criteria:
+  problem_solution_arc:
+    anchors:
+      - { ratio: 1.0, desc: "Yazı alıcının gerçek/somut bir problemiyle açılıyor ve gövde bu problemi ürün ya da yönteme açıkça bağlıyor" }
+      - { ratio: 0.5, desc: "Problem değinilmiş ama yüzeysel; ya giriş jenerik ya da çözüme bağ zayıf" }
+      - { ratio: 0.0, desc: "Problem kurgusu yok; yazı ürün övgüsü, tanım listesi veya bağlamsız bilgi yığını" }
+  audience_fit:
+    anchors:
+      - { ratio: 1.0, desc: "Dil ve derinlik marka bağlamındaki hedef alıcı profiline uygun (teknik seviye, satın alma bakış açısı)" }
+      - { ratio: 0.5, desc: "Kısmen uygun; yer yer fazla genel/tüketici dili veya gereksiz teknik jargon" }
+      - { ratio: 0.0, desc: "Hedef alıcıyla ilgisiz seviye: tamamen jenerik, tüketiciye ya da yanlış kitleye yazılmış" }
+  claims_sourced:
+    anchors:
+      - { ratio: 1.0, desc: "Sayısal/ticari iddialar onaylı gerçeklerle uyumlu ve/veya kaynağa bağlanmış; çelişki yok" }
+      - { ratio: 0.5, desc: "İddialar çoğunlukla makul ama kaynaksız; onaylı gerçeklerle çelişki yok" }
+      - { ratio: 0.0, desc: "Kaynaksız kesin iddialar baskın VEYA onaylı gerçeklerle çelişen iddia var" }
+  term_accuracy:
+    anchors:
+      - { ratio: 1.0, desc: "Metin doğru ticari terimleri kullanıyor; tuzak terim geçmiyor" }
+      - { ratio: 0.5, desc: "Doğru terimler var ama seyrek/tutarsız; tuzak terim yok" }
+      - { ratio: 0.0, desc: "Tuzak terim kullanılmış veya doğru terimler hiç geçmiyor" }
+  sector_evidence:
+    anchors:
+      - { ratio: 1.0, desc: "Sektöre özgü somut kanıt var: kullanım senaryosu, sektör gereksinimi, örnek uygulama açıkça anlatılmış" }
+      - { ratio: 0.5, desc: "Sektöre değinilmiş ama kanıt jenerik; aynı metin başka sektöre de uyar" }
+      - { ratio: 0.0, desc: "Sektöre özgü içerik yok; sayfa adı sektör, gövdesi genel ürün anlatımı" }
+  named_reference:
+    anchors:
+      - { ratio: 1.0, desc: "Marka bağlamındaki izinli listeden isimli referans/vaka sayfada geçiyor" }
+      - { ratio: 0.5, desc: "Referansa işaret var ama isimsiz (\"önde gelen markalar\" gibi) ya da vaka anlatısı zayıf" }
+      - { ratio: 0.0, desc: "Hiçbir referans/vaka işareti yok" }
+  certificates:
+    anchors:
+      - { ratio: 1.0, desc: "Sayfayla ilgili sertifika (marka bağlamındaki onaylı sertifikalardan) açıkça ve doğru anlatılmış" }
+      - { ratio: 0.5, desc: "Sertifika adı geçiyor ama bağlamsız/liste düzeyinde" }
+      - { ratio: 0.0, desc: "Sertifika bilgisi yok VEYA onaylı olmayan sertifika iddiası var" }
+  material:
+    anchors:
+      - { ratio: 1.0, desc: "Malzeme/bileşen bilgisi somut (malzeme adı, katman, gramaj gibi)" }
+      - { ratio: 0.5, desc: "Malzemeye değinilmiş ama yüzeysel (\"kaliteli malzeme\" düzeyi)" }
+      - { ratio: 0.0, desc: "Malzeme/bileşen bilgisi yok" }
+  sampling:
+    anchors:
+      - { ratio: 1.0, desc: "Numune/deneme süreci anlatılmış: nasıl istenir, ne kadar sürer veya koşulu ne" }
+      - { ratio: 0.5, desc: "Numune kelimesi geçiyor ama süreç anlatılmamış" }
+      - { ratio: 0.0, desc: "Numune/deneme bilgisi yok" }
+  export_info:
+    anchors:
+      - { ratio: 1.0, desc: "İhracat/teslim bilgisi somut (Incoterm, pazar, lojistik veya teslim koşulu)" }
+      - { ratio: 0.5, desc: "İhracata değinilmiş ama koşulsuz/genel (\"dünyaya gönderiyoruz\" düzeyi)" }
+      - { ratio: 0.0, desc: "İhracat/teslim bilgisi yok" }
+
+# Bu sürümde modele GÖNDERİLMEYEN kriterler ve nedenleri. Bunlar
+# "değerlendirilmedi" kalır; neden, kriter notuna yazılır.
+skip:
+  real_photos: "görsel yargısı gerektirir (gerçek fotoğraf/stok ayrımı) — sonraki adım"
+  tech_drawing: "görsel yargısı gerektirir (gerçek teknik çizim ayrımı) — sonraki adım"
+  faq_coverage: "bilgi paketinde müşteri sık-soru verisi henüz yok"
