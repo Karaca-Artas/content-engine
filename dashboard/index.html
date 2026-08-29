@@ -5,22 +5,512 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>İçerik Motoru Panosu</title>
 <style>
-  :root { --bg:#fff; --fg:#1a1a1a; --muted:#666; --card:#f5f5f5; }
-  @media (prefers-color-scheme: dark) { :root { --bg:#111; --fg:#eee; --muted:#999; --card:#1d1d1d; } }
-  body { margin:0; font-family:system-ui,sans-serif; background:var(--bg); color:var(--fg); }
-  main { max-width:960px; margin:0 auto; padding:2rem 1rem; }
-  .card { background:var(--card); border-radius:10px; padding:1.25rem; margin:1rem 0; }
-  .muted { color:var(--muted); }
+  :root {
+    color-scheme: light;
+    --page:#f9f9f7; --surface:#fcfcfb; --ink:#0b0b0b; --ink-2:#52514e; --muted:#898781;
+    --grid:#e1e0d9; --axis:#c3c2b7; --border:rgba(11,11,11,0.10);
+    --seq:#2a78d6; --seq-soft:#cde2fb;
+    --good:#006300; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
+    --chip:#f0efec;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --page:#0d0d0d; --surface:#1a1a19; --ink:#ffffff; --ink-2:#c3c2b7; --muted:#898781;
+      --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,0.10);
+      --seq:#3987e5; --seq-soft:#184f95;
+      --good:#0ca30c; --chip:#262624;
+    }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--page); color:var(--ink);
+         font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+  main { max-width:1060px; margin:0 auto; padding:1.5rem 1rem 4rem; }
+  h1 { font-size:1.35rem; margin:.2rem 0; }
+  h2 { font-size:1.05rem; margin:0 0 .75rem; }
+  .sub { color:var(--ink-2); margin:0 0 1rem; }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:10px;
+          padding:1.1rem 1.25rem; margin:1rem 0; }
+  .muted { color:var(--muted); } .ink2 { color:var(--ink-2); }
+  .row { display:flex; gap:1rem; flex-wrap:wrap; align-items:stretch; }
+  .grow { flex:1 1 140px; }
+  .tile { background:var(--surface); border:1px solid var(--border); border-radius:10px;
+          padding: .8rem 1rem; }
+  .tile .v { font-size:1.55rem; font-weight:650; }
+  .tile .l { color:var(--ink-2); font-size:.8rem; }
+  .tile .n { color:var(--muted); font-size:.75rem; }
+  .chip { display:inline-block; background:var(--chip); color:var(--ink-2); border-radius:999px;
+          padding:.05rem .55rem; font-size:.75rem; white-space:nowrap; }
+  .chip.warn { color:var(--ink); }
+  table { border-collapse:collapse; width:100%; }
+  th { text-align:left; color:var(--muted); font-weight:500; font-size:.78rem;
+       border-bottom:1px solid var(--axis); padding:.3rem .5rem; }
+  td { padding:.42rem .5rem; border-bottom:1px solid var(--grid); vertical-align:top; }
+  td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; }
+  tr:last-child td { border-bottom:none; }
+  .bar { position:relative; background:var(--chip); border-radius:4px; height:10px; min-width:120px; }
+  .bar > i { position:absolute; inset:0 auto 0 0; background:var(--seq); border-radius:4px; display:block; }
+  .scroll { overflow-x:auto; }
+  select, input[type=text], input[type=password], button {
+    font:inherit; color:var(--ink); background:var(--surface); border:1px solid var(--axis);
+    border-radius:8px; padding:.4rem .6rem; }
+  button { cursor:pointer; } button.primary { border-color:var(--seq); }
+  details { margin:.2rem 0; } summary { cursor:pointer; color:var(--ink-2); }
+  .banner { border-radius:10px; padding:.7rem 1rem; margin:.75rem 0; border:1px solid var(--border);
+            background:var(--surface); }
+  .banner.warn { border-color:var(--warning); }
+  .banner.err { border-color:var(--critical); }
+  .drop { border:2px dashed var(--axis); border-radius:10px; padding:1.2rem; text-align:center;
+          color:var(--ink-2); }
+  .drop.over { border-color:var(--seq); color:var(--ink); }
+  .kv { color:var(--muted); font-size:.78rem; }
+  .delta-up { color:var(--good); } .delta-down { color:var(--critical); }
+  .flag { font-size:.9em; }
+  svg text { fill:var(--muted); font-size:11px; }
+  .legendnote { color:var(--muted); font-size:.78rem; margin-top:.35rem; }
+  .cols2 { display:grid; grid-template-columns:1fr 1fr; gap:0 1.5rem; }
+  @media (max-width:700px) { .cols2 { grid-template-columns:1fr; } }
+  code { background:var(--chip); border-radius:4px; padding:0 .3rem; }
 </style>
 </head>
 <body>
 <main>
   <h1>İçerik Motoru Panosu</h1>
-  <p class="muted">İskelet sürüm — veriler <code>dashboard/data/</code> altındaki JSON dosyalarından okunacak.
-  Pano yalnız gösterir; onay düğmesi taşımaz.</p>
-  <div class="card"><h2>Aksiyon kuyruğu</h2><p class="muted">Henüz veri yok (Faz 3).</p></div>
-  <div class="card"><h2>Sayfa karneleri</h2><p class="muted">Henüz veri yok (Faz 1).</p></div>
-  <div class="card"><h2>Geri bildirim döngüsü</h2><p class="muted">Henüz veri yok — aksiyonlar 6-8 hafta sonra yeniden ölçülür.</p></div>
+  <p class="sub" id="siteLine">Kalite taraması sonuçları — <code>results/quality</code> sözleşmesi v1.0.
+     Pano yalnız gösterir; onay düğmesi taşımaz.</p>
+
+  <div id="banners"></div>
+
+  <section class="card" id="srcCard">
+    <h2>Veri kaynağı</h2>
+    <div class="cols2">
+      <div>
+        <p class="ink2" style="margin-top:0"><strong>1 — Dosyadan aç:</strong> <code>index.json</code>,
+        <code>latest.json</code> ve istersen <code>history/*.json</code> dosyalarını buraya bırak.</p>
+        <div class="drop" id="drop">Dosyaları sürükle-bırak<br>
+          <label style="text-decoration:underline;cursor:pointer">veya seç
+            <input type="file" id="filePick" multiple accept=".json,application/json" hidden>
+          </label>
+        </div>
+      </div>
+      <div>
+        <p class="ink2" style="margin-top:0"><strong>2 — GitHub'dan çek</strong> (private depo, salt-okunur
+        ince-taneli anahtar):</p>
+        <div class="row">
+          <input type="text" id="ghRepo" class="grow" placeholder="kullanıcı/depo (örn. hesap/marka-deposu)">
+          <input type="text" id="ghPath" class="grow" placeholder="yol" value="results/quality">
+        </div>
+        <div class="row" style="margin-top:.5rem">
+          <input type="password" id="ghToken" class="grow" placeholder="GitHub anahtarı (yalnız Contents: Read)">
+          <button class="primary" id="ghFetch">Veriyi çek</button>
+        </div>
+        <p class="kv">Anahtar ve depo adı yalnız bu tarayıcıda saklanır; hiçbir sunucuya gönderilmez
+        (GitHub API çağrısı dışında). Alanı boşaltıp çekersen kayıtlı anahtar silinir.</p>
+      </div>
+    </div>
+  </section>
+
+  <div id="app" hidden>
+    <section class="card">
+      <div class="row" style="align-items:center">
+        <h2 style="margin:0">Koşu</h2>
+        <select id="runSel"></select>
+        <span class="kv" id="runMeta"></span>
+      </div>
+      <div class="row" style="margin-top: .9rem" id="tiles"></div>
+      <p class="legendnote" id="honesty">Oto-puan yalnız <strong>otomatik ölçülen</strong> kriterlerin
+      yüzdesidir. Model yargısı gerektiren kriterler puanlanmamıştır ve her sayfada
+      “değerlendirilmedi” ağırlığı olarak ayrı gösterilir — ikisi tek puan değildir.</p>
+      <div id="byType"></div>
+    </section>
+
+    <section class="card" id="trendCard">
+      <h2>Koşular ve eğilim</h2>
+      <div id="trendChart"></div>
+      <div class="scroll"><table id="runTable"></table></div>
+      <p class="legendnote">⚠️ işaretli koşuda yöntem değişmiş (motor/cetvel/marka paketi) —
+      puan farkı siteden gelmeyebilir. Eğilim çizgisi: ortalama oto-%.</p>
+    </section>
+
+    <section class="card">
+      <div class="row" style="align-items:center">
+        <h2 style="margin:0">Sayfa karneleri</h2>
+        <select id="typeFilter"></select>
+        <select id="sortSel">
+          <option value="asc">Düşükten yükseğe</option>
+          <option value="desc">Yüksekten düşüğe</option>
+        </select>
+      </div>
+      <div class="scroll"><table id="pageTable"></table></div>
+      <div id="unscored"></div>
+    </section>
+
+    <section class="card" id="changesCard">
+      <h2>Önceki koşuya göre değişim</h2>
+      <div id="changes"></div>
+    </section>
+
+    <section class="card">
+      <h2>Bulgular</h2>
+      <div id="findings"></div>
+    </section>
+
+    <p class="kv" id="metaLine"></p>
+  </div>
 </main>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const state = { index:null, results:{}, order:[], selected:null };
+
+/* ---------- yardımcılar ---------- */
+function banner(msg, cls) {
+  const d = document.createElement("div");
+  d.className = "banner " + (cls||"");
+  d.innerHTML = msg;
+  $("banners").appendChild(d);
+  return d;
+}
+function clearBanners(){ $("banners").innerHTML = ""; }
+function fmtTs(iso){
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d)) return iso;
+  return d.toLocaleString("tr-TR", {day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"});
+}
+function fmtPct(v){ return (v==null) ? "—" : (Math.round(v*10)/10).toLocaleString("tr-TR") + "%"; }
+function fmtNum(v){ return (v==null) ? "—" : Number(v).toLocaleString("tr-TR"); }
+function shortUrl(u, site){
+  try {
+    const x = new URL(u);
+    let p = x.pathname + (x.search||"");
+    if (p.length > 1 && p.endsWith("/")) p = p.slice(0,-1);
+    return p === "" || p === "/" ? "/ (ana sayfa)" : decodeURIComponent(p);
+  } catch(e){ return u; }
+}
+const TYPE_TR = { product_page:"ürün", sector_page:"sektör", blog_post:"blog", archive:"arşiv", other:"diğer" };
+function typeChip(t){ return '<span class="chip">'+esc(TYPE_TR[t]||t||"?")+'</span>'; }
+function methodChanged(res){
+  const m = res && res.changes && res.changes.method_changed;
+  return !!(m && (m.engine || m.rubrics || m.brandpack));
+}
+
+/* ---------- sözleşme doğrulama ---------- */
+function checkContract(obj, fname) {
+  const c = obj && obj.contract, v = obj && obj.contract_version;
+  if (c !== "quality-scan-result" && c !== "quality-scan-index") {
+    banner("<strong>"+esc(fname)+"</strong>: tanınmayan sözleşme (<code>"+esc(c)+"</code>) — dosya atlandı.", "err");
+    return null;
+  }
+  if (typeof v !== "string" || !v.startsWith("1.")) {
+    banner("<strong>"+esc(fname)+"</strong>: sözleşme sürümü <code>"+esc(v)+"</code> bu panonun tanıdığı 1.x değil — dosya atlandı.", "err");
+    return null;
+  }
+  return c;
+}
+function ingest(obj, fname) {
+  const c = checkContract(obj, fname);
+  if (!c) return false;
+  if (c === "quality-scan-index") { state.index = obj; }
+  else {
+    const id = obj.run && obj.run.id;
+    if (!id) { banner("<strong>"+esc(fname)+"</strong>: run.id yok — dosya atlandı.", "err"); return false; }
+    state.results[id] = obj;
+  }
+  return true;
+}
+function rebuildOrder(){
+  // koşu sırası: index varsa index (en yeni üstte); yoksa yüklü sonuç dosyalarından
+  if (state.index && Array.isArray(state.index.runs)) {
+    state.order = state.index.runs.map(r => r.id);
+    for (const id of Object.keys(state.results))
+      if (!state.order.includes(id)) state.order.unshift(id);
+  } else {
+    state.order = Object.keys(state.results).sort().reverse();
+  }
+  if (!state.selected || !(state.order.includes(state.selected)))
+    state.selected = state.order.find(id => state.results[id]) || state.order[0] || null;
+}
+
+/* ---------- veri kaynakları ---------- */
+async function readFiles(fileList) {
+  clearBanners();
+  let ok = 0;
+  for (const f of fileList) {
+    try { const obj = JSON.parse(await f.text()); if (ingest(obj, f.name)) ok++; }
+    catch(e){ banner("<strong>"+esc(f.name)+"</strong>: JSON okunamadı ("+esc(e.message)+").", "err"); }
+  }
+  if (ok) { rebuildOrder(); render(); }
+}
+const LS_CFG = "ce_dash_cfg", LS_TOK = "ce_dash_token";
+function loadCfg(){
+  try {
+    const c = JSON.parse(localStorage.getItem(LS_CFG) || "{}");
+    if (c.repo) $("ghRepo").value = c.repo;
+    if (c.path) $("ghPath").value = c.path;
+    const t = localStorage.getItem(LS_TOK); if (t) $("ghToken").value = t;
+  } catch(e){}
+}
+function saveCfg(repo, path, token){
+  try {
+    localStorage.setItem(LS_CFG, JSON.stringify({repo, path}));
+    if (token) localStorage.setItem(LS_TOK, token); else localStorage.removeItem(LS_TOK);
+  } catch(e){}
+}
+async function ghGet(repo, path, token, file){
+  const url = "https://api.github.com/repos/"+repo+"/contents/"+path+"/"+file;
+  const headers = { "Accept": "application/vnd.github.raw+json", "X-GitHub-Api-Version":"2022-11-28" };
+  if (token) headers["Authorization"] = "Bearer " + token;
+  const r = await fetch(url, { headers });
+  if (!r.ok) throw new Error(file + " → HTTP " + r.status);
+  return JSON.parse(await r.text());
+}
+async function ghFetchAll(){
+  clearBanners();
+  const repo = $("ghRepo").value.trim(), path = $("ghPath").value.trim().replace(/\/+$/,""),
+        token = $("ghToken").value.trim();
+  if (!/^[^\/\s]+\/[^\/\s]+$/.test(repo)) { banner("Depo adı <code>kullanıcı/depo</code> biçiminde olmalı.", "err"); return; }
+  saveCfg(repo, path, token);
+  const btn = $("ghFetch"); btn.disabled = true; btn.textContent = "Çekiliyor…";
+  try {
+    const idx = await ghGet(repo, path, token, "index.json");
+    if (!ingest(idx, "index.json")) return;
+    const latest = await ghGet(repo, path, token, "latest.json");
+    ingest(latest, "latest.json");
+    const runs = (idx.runs || []).slice(0, 30);
+    let fail = 0;
+    for (const r of runs) {
+      if (state.results[r.id]) continue;
+      try { ingest(await ghGet(repo, path, token, r.file), r.file); }
+      catch(e){ fail++; }
+    }
+    if (fail) banner(fail + " geçmiş koşu dosyası çekilemedi (liste yine de gösteriliyor).", "warn");
+    rebuildOrder(); render();
+  } catch(e){
+    banner("GitHub'dan çekilemedi: " + esc(e.message) +
+      ". Anahtarın <em>yalnız bu depoya</em>, <em>Contents: Read</em> izniyle açılmış olmalı.", "err");
+  } finally { btn.disabled = false; btn.textContent = "Veriyi çek"; }
+}
+
+/* ---------- görünümler ---------- */
+function tile(v, l, n){
+  return '<div class="tile grow"><div class="v">'+v+'</div><div class="l">'+l+'</div>'+
+         (n?('<div class="n">'+n+'</div>'):'')+'</div>';
+}
+function renderSummary(res){
+  const t = res.totals || {}, run = res.run || {};
+  $("runMeta").textContent = fmtTs(run.timestamp_utc) + " · " + (run.site || "");
+  if (run.site) $("siteLine").innerHTML = "Kalite taraması — <strong>" + esc(run.site) + "</strong>. Pano yalnız gösterir; onay düğmesi taşımaz.";
+  $("tiles").innerHTML =
+    tile(fmtPct(t.avg_auto_pct), "ortalama oto-puan", "yalnız otomatik kriterler") +
+    tile(fmtNum(t.scored_pages), "puanlanan sayfa", fmtNum(t.unscored_pages) + " sayfa cetvel dışı") +
+    tile(fmtNum(t.trap_terms), "tuzak terim", "") +
+    tile(fmtNum(t.fact_conflicts), "gerçek çelişkisi", "onaylı gerçeklerle") +
+    tile(fmtNum(run.pages_ok), "işlenen sayfa", "tavan " + fmtNum(run.max_pages));
+  const bt = t.by_type || {};
+  const keys = Object.keys(bt);
+  $("byType").innerHTML = !keys.length ? "" :
+    '<p class="kv" style="margin-bottom:.2rem">Tip bazında (puanlananlar):</p>' +
+    '<div class="scroll"><table><tr><th>Tip</th><th class="num">Sayfa</th><th class="num">Ort. oto-%</th></tr>' +
+    keys.map(k => '<tr><td>'+typeChip(k)+'</td><td class="num">'+fmtNum(bt[k].pages)+
+      '</td><td class="num">'+fmtPct(bt[k].avg_auto_pct)+'</td></tr>').join("") + '</table></div>';
+}
+
+function renderTrend(){
+  const idx = state.index;
+  const host = $("trendChart"), tbl = $("runTable");
+  if (!idx || !Array.isArray(idx.runs) || !idx.runs.length) {
+    host.innerHTML = '<p class="muted">index.json yüklenmedi — eğilim ve koşu listesi için onu da aç.</p>';
+    tbl.innerHTML = ""; return;
+  }
+  const runs = idx.runs.slice().reverse(); // eski → yeni
+  const W = 640, H = 130, PL = 34, PR = 46, PT = 10, PB = 24;
+  const iw = W-PL-PR, ih = H-PT-PB;
+  const x = i => runs.length<2 ? PL+iw/2 : PL + i*(iw/(runs.length-1));
+  const y = v => PT + (1 - (v/100)) * ih;
+  let s = '<svg viewBox="0 0 '+W+' '+H+'" width="100%" style="max-width:'+W+'px" role="img" aria-label="Koşu başına ortalama oto-puan eğilimi">';
+  for (const g of [0,25,50,75,100])
+    s += '<line x1="'+PL+'" y1="'+y(g)+'" x2="'+(W-PR)+'" y2="'+y(g)+'" stroke="var(--grid)" stroke-width="1"/>' +
+         '<text x="'+(PL-6)+'" y="'+(y(g)+4)+'" text-anchor="end">'+g+'</text>';
+  const pts = runs.map((r,i)=>[x(i), y(r.avg_auto_pct ?? 0)]);
+  s += '<polyline fill="none" stroke="var(--seq)" stroke-width="2" points="'+pts.map(p=>p.join(",")).join(" ")+'"/>';
+  runs.forEach((r,i)=>{
+    s += '<circle cx="'+pts[i][0]+'" cy="'+pts[i][1]+'" r="4" fill="var(--seq)" stroke="var(--surface)" stroke-width="2">'+
+         '<title>'+esc(r.id)+' — '+fmtPct(r.avg_auto_pct)+'</title></circle>';
+    const d = new Date(r.timestamp_utc);
+    const lab = isNaN(d) ? r.id : d.toLocaleString("tr-TR",{day:"2-digit",month:"2-digit"}) + " " + d.toLocaleString("tr-TR",{hour:"2-digit",minute:"2-digit"});
+    if (runs.length <= 8 || i === 0 || i === runs.length-1)
+      s += '<text x="'+pts[i][0]+'" y="'+(H-6)+'" text-anchor="middle">'+esc(lab)+'</text>';
+  });
+  s += '</svg>';
+  host.innerHTML = s;
+  tbl.innerHTML = '<tr><th>Koşu</th><th>Tarih</th><th class="num">Puanlanan</th><th class="num">Ort. oto-%</th>'+
+    '<th class="num">Tuzak</th><th class="num">Çelişki</th><th class="num">Değişen sayfa</th><th></th></tr>' +
+    idx.runs.map(r => {
+      const res = state.results[r.id];
+      const warn = res && methodChanged(res) ? ' <span class="flag" title="Yöntem değişti">⚠️</span>' : '';
+      const cur = r.id === state.selected ? ' style="font-weight:650"' : '';
+      const link = res ? '<a href="#" data-run="'+esc(r.id)+'" style="color:var(--seq)">görüntüle</a>'
+                       : '<span class="muted" title="Bu koşunun detay dosyası yüklü değil">detay yüklü değil</span>';
+      return '<tr'+cur+'><td><code>'+esc(r.id)+'</code>'+warn+'</td><td>'+fmtTs(r.timestamp_utc)+'</td>'+
+        '<td class="num">'+fmtNum(r.scored_pages)+'</td><td class="num">'+fmtPct(r.avg_auto_pct)+'</td>'+
+        '<td class="num">'+fmtNum(r.trap_terms)+'</td><td class="num">'+fmtNum(r.fact_conflicts)+'</td>'+
+        '<td class="num">'+(r.changed_pages==null?'— <span class="muted">(ilk koşu)</span>':fmtNum(r.changed_pages))+'</td>'+
+        '<td>'+link+'</td></tr>';
+    }).join("");
+  tbl.querySelectorAll("a[data-run]").forEach(a => a.addEventListener("click", e => {
+    e.preventDefault(); state.selected = a.dataset.run; render();
+  }));
+}
+
+function criteriaTable(p){
+  if (!Array.isArray(p.criteria) || !p.criteria.length) return "";
+  const rows = p.criteria.map(c => {
+    const pts = c.points==null ? '<span class="muted">değerlendirilmedi</span>'
+      : fmtNum(c.points) + ' / ' + fmtNum(c.weight);
+    return '<tr><td><code>'+esc(c.key)+'</code></td>'+
+      '<td>'+(c.auto ? 'oto' : '<span class="muted">model yargısı</span>')+'</td>'+
+      '<td class="num">'+pts+'</td>'+
+      '<td class="ink2">'+esc(c.note||"")+'</td></tr>';
+  }).join("");
+  return '<details><summary>Kriter dökümü ('+p.criteria.length+')</summary>'+
+    '<div class="scroll"><table><tr><th>Kriter</th><th>Tür</th><th class="num">Puan</th><th>Not</th></tr>'+
+    rows + '</table></div></details>';
+}
+function renderPages(res){
+  const site = res.run && res.run.site;
+  const pages = Array.isArray(res.pages) ? res.pages : [];
+  const scored = pages.filter(p => p.scored);
+  const unscored = pages.filter(p => !p.scored);
+  // tip filtresi
+  const types = [...new Set(scored.map(p => p.type))];
+  const tf = $("typeFilter");
+  const keep = tf.value;
+  tf.innerHTML = '<option value="">tüm tipler</option>' +
+    types.map(t => '<option value="'+esc(t)+'"'+(t===keep?' selected':'')+'>'+esc(TYPE_TR[t]||t)+'</option>').join("");
+  let list = tf.value ? scored.filter(p => p.type === tf.value) : scored.slice();
+  list.sort((a,b) => ($("sortSel").value==="asc"?1:-1) * ((a.auto_pct??0) - (b.auto_pct??0)));
+  $("pageTable").innerHTML = '<tr><th>Sayfa</th><th>Tip</th><th>Oto-puan</th><th class="num">%</th>'+
+    '<th class="num">Oto p.</th><th class="num">Değerlendirilmemiş</th></tr>' +
+    list.map(p => {
+      const w = Math.max(0, Math.min(100, p.auto_pct ?? 0));
+      return '<tr><td><a href="'+esc(p.url)+'" target="_blank" rel="noopener" style="color:inherit">'+
+        esc(shortUrl(p.url, site))+'</a>'+criteriaTable(p)+'</td>'+
+        '<td>'+typeChip(p.type)+'</td>'+
+        '<td><div class="bar" title="'+fmtPct(p.auto_pct)+'"><i style="width:'+w+'%"></i></div></td>'+
+        '<td class="num">'+fmtPct(p.auto_pct)+'</td>'+
+        '<td class="num">'+fmtNum(p.auto_earned)+' / '+fmtNum(p.auto_possible)+'</td>'+
+        '<td class="num"><span class="chip" title="Model yargısı gerektiren kriterlerin toplam ağırlığı — henüz puanlanmadı">'+
+          fmtNum(p.unassessed_weight)+' p</span></td></tr>';
+    }).join("");
+  $("unscored").innerHTML = !unscored.length ? "" :
+    '<details style="margin-top:.6rem"><summary>Cetvel dışı sayfalar ('+unscored.length+') — puanlanmaz, yalnız tuzak/çelişki taranır</summary>'+
+    '<div class="scroll"><table><tr><th>Sayfa</th><th>Tip</th></tr>'+
+    unscored.map(p => '<tr><td>'+esc(shortUrl(p.url, site))+'</td><td>'+typeChip(p.type)+'</td></tr>').join("")+
+    '</table></div></details>';
+}
+
+function listBlock(title, arr, fmt){
+  if (!arr || !arr.length) return "";
+  return '<p style="margin:.6rem 0 .2rem"><strong>'+title+'</strong> ('+arr.length+')</p>'+
+         '<ul style="margin:.2rem 0">'+arr.map(fmt).join("")+'</ul>';
+}
+function findingLine(f){
+  if (f.kind === "trap_term")
+    return '<li>⚠️ <strong>Tuzak terim</strong> — '+esc(shortUrl(f.url))+': <code>'+esc(f.trap)+'</code>'+
+      (f.correct?' → doğrusu <code>'+esc(f.correct)+'</code>':'')+(f.count?' ('+fmtNum(f.count)+'×)':'')+'</li>';
+  if (f.kind === "fact_conflict")
+    return '<li>⛔ <strong>Çelişki</strong> — '+esc(shortUrl(f.url))+': <code>'+esc(f.field)+'</code> sayfada '+
+      '“'+esc(f.page_value)+'”, onaylı değer “'+esc(f.approved_value)+'”. <span class="ink2">'+esc(f.note||"")+'</span></li>';
+  return '<li>'+esc(JSON.stringify(f))+'</li>';
+}
+function renderChanges(res){
+  const c = res.changes, host = $("changes");
+  if (!c) { host.innerHTML = '<p class="muted">Bu koşuda değişim bloğu yok.</p>'; return; }
+  if (c.first_run) {
+    host.innerHTML = '<p class="ink2">İlk kalıcı koşu — önceki kayıt yok, fark üretilmedi.</p>'; return;
+  }
+  let h = '<p class="kv">Önceki koşu: <code>'+esc(c.prev_run_id)+'</code> ('+fmtTs(c.prev_timestamp_utc)+')</p>';
+  if (methodChanged(res)) {
+    const m = c.method_changed, parts = [];
+    if (m.engine) parts.push("motor"); if (m.rubrics) parts.push("cetveller"); if (m.brandpack) parts.push("marka paketi");
+    h += '<div class="banner warn">⚠️ <strong>Yöntem değişti:</strong> '+parts.join(", ")+
+         ' — puan farkları siteden değil yöntem değişikliğinden gelebilir; yorum insana aittir.</div>';
+  }
+  const s = c.summary || {};
+  const totalChanged = (s.pages_changed||0)+(s.new_pages||0)+(s.removed_pages||0)+(s.new_findings||0)+(s.resolved_findings||0);
+  if (!totalChanged) h += '<p class="ink2">Değişiklik yok.</p>';
+  h += listBlock("Yeni sayfalar", c.new_pages, u => '<li>'+esc(shortUrl(u))+'</li>');
+  h += listBlock("Kaybolan sayfalar", c.removed_pages, u => '<li>'+esc(shortUrl(u))+'</li>');
+  h += listBlock("Tip değişimi", c.type_changes, t =>
+    '<li>'+esc(shortUrl(t.url))+': '+esc(TYPE_TR[t.prev]||t.prev)+' → '+esc(TYPE_TR[t.new]||t.new)+'</li>');
+  h += listBlock("Puan değişimi (oto-%)", c.score_changes, t => {
+    const up = t.delta_pct > 0;
+    return '<li>'+esc(shortUrl(t.url))+': '+fmtPct(t.prev_pct)+' → '+fmtPct(t.new_pct)+
+      ' <span class="'+(up?'delta-up':'delta-down')+'">'+(up?'▲':'▼')+' '+fmtNum(Math.abs(t.delta_pct))+'</span></li>';
+  });
+  h += listBlock("Açılan bulgular", c.new_findings, findingLine);
+  h += listBlock("Kapanan bulgular", c.resolved_findings, findingLine);
+  $("changes").innerHTML = h;
+}
+function renderFindings(res){
+  const f = Array.isArray(res.findings) ? res.findings : [];
+  $("findings").innerHTML = f.length ? '<ul style="margin:.2rem 0">'+f.map(findingLine).join("")+'</ul>'
+    : '<p class="ink2">Bu koşuda bulgu yok.</p>';
+}
+function renderMeta(res){
+  const r = res.run || {};
+  const rv = r.rubric_versions ? Object.entries(r.rubric_versions).map(([k,v])=>esc(k)+" v"+esc(v)).join(" · ") : "—";
+  $("metaLine").innerHTML = "Sözleşme: <code>"+esc(res.contract)+" v"+esc(res.contract_version)+"</code> · "+
+    "motor <code>"+esc(r.engine_rev||"—")+"</code> · marka paketi <code>"+esc(r.brandpack_rev||"—")+"</code> · "+
+    "cetveller: "+rv+(r.rubric_note?" ("+esc(r.rubric_note)+")":"")+
+    (r.workflow_run?" · Actions koşusu #"+esc(r.workflow_run):"");
+}
+
+function render(){
+  rebuildOrder();
+  const haveAny = state.order.length && state.selected && state.results[state.selected];
+  $("app").hidden = !haveAny;
+  if (!haveAny) {
+    if (state.index && !Object.keys(state.results).length)
+      banner("index.json yüklendi ama hiçbir koşu detayı (latest.json / history) yok — detay dosyası da aç.", "warn");
+    return;
+  }
+  const sel = $("runSel");
+  sel.innerHTML = state.order.filter(id => state.results[id]).map(id => {
+    const isLatest = id === state.order[0];
+    const w = methodChanged(state.results[id]) ? " ⚠️" : "";
+    return '<option value="'+esc(id)+'"'+(id===state.selected?' selected':'')+'>'+
+      esc(id)+(isLatest?" (son koşu)":"")+w+'</option>';
+  }).join("");
+  const res = state.results[state.selected];
+  renderSummary(res); renderTrend(); renderPages(res); renderChanges(res); renderFindings(res); renderMeta(res);
+}
+
+/* ---------- olaylar ---------- */
+$("runSel").addEventListener("change", e => { state.selected = e.target.value; render(); });
+$("typeFilter").addEventListener("change", () => render());
+$("sortSel").addEventListener("change", () => render());
+$("filePick").addEventListener("change", e => readFiles(e.target.files));
+const drop = $("drop");
+drop.addEventListener("dragover", e => { e.preventDefault(); drop.classList.add("over"); });
+drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+drop.addEventListener("drop", e => { e.preventDefault(); drop.classList.remove("over"); readFiles(e.dataTransfer.files); });
+$("ghFetch").addEventListener("click", ghFetchAll);
+loadCfg();
+
+/* test/enjeksiyon API'si: window.CE_DASH.load({index, results:[...]}) */
+window.CE_DASH = {
+  state,
+  load(objs){
+    clearBanners();
+    (objs.results||[]).forEach((o,i) => ingest(o, "sonuç#"+i));
+    if (objs.index) ingest(objs.index, "index.json");
+    rebuildOrder(); render();
+  }
+};
+</script>
 </body>
 </html>
