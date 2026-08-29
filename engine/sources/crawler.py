@@ -18,7 +18,9 @@ Kullanım::
 
 Dönen her kayıt: url, status, lang, title, meta_description, headings
 (h1/h2/h3 listesi), text (görünür metin), links (aynı alan adındaki iç
-bağlantılar), images_alt (alt metinleri), hreflang (dil -> url).
+bağlantılar), images_alt (alt metinleri), hreflang (dil -> url),
+og_type (og:type meta değeri; WordPress yazılarda "article"),
+published_time (article:published_time meta değeri, varsa).
 """
 
 from __future__ import annotations
@@ -56,6 +58,8 @@ class _PageParser(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.title = ""
         self.meta_description = ""
+        self.og_type = ""
+        self.published_time = ""
         self.lang = ""
         self.headings: dict[str, list[str]] = {"h1": [], "h2": [], "h3": []}
         self.links: list[tuple[str, str]] = []  # (href, anchor metni)
@@ -77,6 +81,12 @@ class _PageParser(HTMLParser):
             if name in ("description", "og:description") and a.get("content"):
                 if not self.meta_description:
                     self.meta_description = a["content"].strip()
+            elif name == "og:type" and a.get("content"):
+                if not self.og_type:
+                    self.og_type = a["content"].strip().lower()
+            elif name == "article:published_time" and a.get("content"):
+                if not self.published_time:
+                    self.published_time = a["content"].strip()
         elif tag == "link":
             if (a.get("rel") or "").lower() == "alternate" and a.get("hreflang") and a.get("href"):
                 self.hreflang[a["hreflang"].lower()] = a["href"]
@@ -296,6 +306,8 @@ def crawl(config: dict, log=None) -> list[dict]:
             "links": internal_links[:200],
             "images_alt": parser.images_alt[:50],
             "hreflang": parser.hreflang,
+            "og_type": parser.og_type,
+            "published_time": parser.published_time,
         })
         log(f"[crawler] {len(pages)}/{max_pages} {url} ({status})")
         time.sleep(delay)
