@@ -6,8 +6,10 @@ depoya YAZILMAZ; yalnız rapor (Actions Summary) üretilir.
 
 Sınıflandırma (jenerik; marka bilgisi yalnız brandpack'ten gelir):
 1. URL deseni: ürün/sektör/blog kalıpları
-2. Desen yoksa: başlık/h1 içinde brandpack doğru terimi geçen sayfa ürün sayılır
-3. Kalanlar "other": cetvel puanı üretilmez, yalnız tuzak terim + çelişki taraması
+2. Yapısal makale sinyali: og:type=article veya article:published_time → blog_post
+   (WordPress'te yazılar kök dizinde yaşayabilir; URL kalıbı tek başına yetmez)
+3. Kalanlarda: başlık/h1 içinde brandpack doğru terimi geçen sayfa ürün sayılır
+4. Kalanlar "other": cetvel puanı üretilmez, yalnız tuzak terim + çelişki taraması
 
 Kullanım::
 
@@ -32,12 +34,9 @@ import yaml
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 from engine.sources.crawler import crawl  # noqa: E402
 from engine.scoring.scorer import (  # noqa: E402
+    BLOG_PATH, PRODUCT_PATH, SECTOR_PATH,
     correct_terms, find_fact_conflicts, find_trap_terms, score_page,
 )
-
-PRODUCT_PATH = re.compile(r"/(urun|uerun|product|products|urunler|cozum|solution)", re.IGNORECASE)
-SECTOR_PATH = re.compile(r"/(sektor|sector|industr|market|uygulama|application)", re.IGNORECASE)
-BLOG_PATH = re.compile(r"/(blog|haber|news|makale|article|rehber|guide|20\d{2}/)", re.IGNORECASE)
 
 
 def load_brandpack(path: str) -> dict:
@@ -61,13 +60,19 @@ def load_rubrics(path: str) -> dict:
     return rubrics
 
 
+def _is_article(page: dict) -> bool:
+    """Yapısal makale sinyali (jenerik): og:type=article veya yayın tarihi meta'sı."""
+    return (page.get("og_type") or "").strip().lower() == "article" or \
+        bool((page.get("published_time") or "").strip())
+
+
 def classify(page: dict, brandpack: dict) -> str:
     url = page.get("url", "")
     if PRODUCT_PATH.search(url):
         return "product_page"
     if SECTOR_PATH.search(url):
         return "sector_page"
-    if BLOG_PATH.search(url):
+    if BLOG_PATH.search(url) or _is_article(page):
         return "blog_post"
     head = " ".join([page.get("title", "")] +
                     (page.get("headings") or {}).get("h1", [])).lower()

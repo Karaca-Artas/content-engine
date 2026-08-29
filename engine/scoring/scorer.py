@@ -26,6 +26,11 @@ from __future__ import annotations
 
 import re
 
+# URL yol kalıpları (sınıflandırma ve yönlendirme kontrolü ortak kullanır; jenerik)
+PRODUCT_PATH = re.compile(r"/(urun|uerun|product|products|urunler|cozum|solution)", re.IGNORECASE)
+SECTOR_PATH = re.compile(r"/(sektor|sector|industr|market|uygulama|application)", re.IGNORECASE)
+BLOG_PATH = re.compile(r"/(blog|haber|news|makale|article|rehber|guide|20\d{2}/)", re.IGNORECASE)
+
 # ---------------------------------------------------------------- yardımcılar
 
 _MEASURE_RE = re.compile(r"\d+[.,]?\d*\s*(mm|cm|ml|cl|lt|gr?|kg|mikron|micron|gsm|oz)\b",
@@ -80,6 +85,23 @@ def _word_re(phrase: str) -> re.Pattern:
     return re.compile(r"(?<!\w)" + re.escape(phrase.strip()) + r"(?!\w)", re.IGNORECASE)
 
 
+def _page_links(page: dict) -> list[tuple[str, str]]:
+    """links alanını (href, anchor) çiftlerine normalize eder.
+
+    Tarayıcı {"url":…, "anchor":…} sözlükleri üretir; eski/test verisi
+    (href, anchor) çifti olabilir. v1'deki hata: sözlükler çift gibi
+    açılınca href="url", anchor="anchor" sabitleri geliyordu — iç link
+    kriteri hep tek linke, CTA link fallback'i hiç bulguya düşüyordu.
+    """
+    out = []
+    for it in page.get("links") or []:
+        if isinstance(it, dict):
+            out.append((it.get("url") or "", it.get("anchor") or ""))
+        elif isinstance(it, (list, tuple)) and len(it) == 2:
+            out.append((it[0] or "", it[1] or ""))
+    return out
+
+
 def _page_text(page: dict) -> str:
     parts = [page.get("title", ""), page.get("meta_description", "")]
     for hs in (page.get("headings") or {}).values():
@@ -128,8 +150,8 @@ def _check_lead_time(page: dict, bp: dict):
 def _check_cta(page: dict, bp: dict):
     if _CTA_RE.search(_page_text(page)):
         return 1.0, "dönüşüm çağrısı metni var"
-    for href, anchor in page.get("links") or []:
-        if _CTA_LINK_RE.search(href) or _CTA_LINK_RE.search(anchor or ""):
+    for href, anchor in _page_links(page):
+        if _CTA_LINK_RE.search(href) or _CTA_LINK_RE.search(anchor):
             return 0.5, "yalnız menü/link düzeyinde iletişim bağlantısı"
     return 0.0, "dönüşüm çağrısı bulunamadı"
 
@@ -173,13 +195,37 @@ def _check_alt_text(page: dict, bp: dict):
 
 
 def _check_internal_links(page: dict, bp: dict):
-    hrefs = {href for href, _ in (page.get("links") or [])}
+    hrefs = {href for href, _ in _page_links(page) if href}
     n = len(hrefs)
     if n >= 3:
         return 1.0, f"{n} farklı iç bağlantı (vekil ölçüm: menü/gövde ayrımı yok)"
     if n >= 1:
         return 0.5, f"{n} iç bağlantı"
     return 0.0, "iç bağlantı yok"
+
+
+def _check_product_links(page: dict, bp: dict):
+    """Yönlendirme: ürün/sektör sayfalarına terimli iç link.
+
+    Sayılan link: anchor'ında veya URL'sinde brandpack doğru terimi geçen,
+    ya da URL'si ürün/sektör yol kalıbına uyan, sayfanın kendisi olmayan link.
+    Vekil ölçüm: menü/gövde ayrımı yapılamıyor (notta belirtilir).
+    """
+    terms = correct_terms(bp)
+    self_url = (page.get("url") or "").rstrip("/")
+    hits = set()
+    for href, anchor in _page_links(page):
+        if not href or href.rstrip("/") == self_url:
+            continue
+        blob = f"{href} {anchor}".lower()
+        if any(t in blob for t in terms) or PRODUCT_PATH.search(href) or SECTOR_PATH.search(href):
+            hits.add(href)
+    n = len(hits)
+    if n >= 2:
+        return 1.0, f"{n} ürün/sektör yönlendirme linki (vekil ölçüm: menü/gövde ayrımı yok)"
+    if n == 1:
+        return 0.6, "1 ürün/sektör yönlendirme linki"
+    return 0.0, "ürün/sektör sayfasına terimli iç link yok"
 
 
 AUTO_CHECKS = {
@@ -191,6 +237,8 @@ AUTO_CHECKS = {
     "title_meta": _check_title_meta,
     "alt_text": _check_alt_text,
     "internal_links": _check_internal_links,
+    "product_links": _check_product_links,
+    "data_specificity": _check_spec_table,  # blog/sektör cetvelinde ölçü yoğunluğu vekili
 }
 
 
