@@ -1,14 +1,28 @@
-# Cetvel şablonu — blog/rehber yazısı · şablon sürümü 1.0
+# Cetvel şablonu — blog/rehber yazısı (100 puan) · şablon sürümü 1.1
+# Bu bir ŞABLONDUR: sihirbaz kriterleri markaya/sektöre uyarlar ve brandpack'e yazar.
 type: blog_post
-version: "1.0"
+version: "1.1"
 threshold_publish: 70
 sections:
-  - key: buyer_problem   # Alıcının gerçek problemiyle başlıyor, çözüme bağlıyor
+  - key: buyer_problem     # Alıcının gerçek problemiyle başlıyor, çözüme bağlıyor
     weight: 30
-  - key: routing         # İlgili ürün/hizmet sayfasını besliyor
+    criteria:
+      - { key: problem_solution_arc, weight: 20, auto: false, desc: "Yazı alıcının gerçek bir problemiyle açılıyor ve çözüme bağlanıyor (model yargılar)" }
+      - { key: audience_fit,         weight: 10, auto: false, desc: "Dil ve derinlik hedef alıcı profiline uygun (model yargılar)" }
+  - key: routing           # İlgili ürün/hizmet sayfasını besliyor
     weight: 25
-  - key: evidence        # İddialar onaylı gerçeklere ve kaynaklara dayalı
+    criteria:
+      - { key: product_links, weight: 15, auto: true,  desc: "Ürün/sektör sayfalarına terimli iç link (anchor/URL'de doğru terim veya ürün/sektör yol kalıbı)" }
+      - { key: cta,           weight: 10, auto: true,  desc: "Yumuşak dönüşüm çağrısı (teklif/numune/iletişim)" }
+  - key: evidence          # İddialar onaylı gerçeklere ve kaynaklara dayalı
     weight: 25
-  - key: search_structure
+    criteria:
+      - { key: claims_sourced,   weight: 15, auto: false, desc: "İddialar kaynaklı ve onaylı gerçeklerle (facts) uyumlu (model yargılar)" }
+      - { key: data_specificity, weight: 10, auto: true,  desc: "Somut veri/ölçü içeriyor (vekil ölçüm: ölçü ifadesi yoğunluğu)" }
+  - key: search_structure  # Arama, yapı ve dilin doğruluğu
     weight: 20
-# Kriter dökümü Faz 1'de detaylandırılacak.
+    criteria:
+      - { key: title_meta,     weight: 8, auto: true,  desc: "Başlık ve meta, sayfanın gerçek sorgusuyla uyumlu" }
+      - { key: alt_text,       weight: 4, auto: true,  desc: "Görsellerde ürün terimli alt metin" }
+      - { key: internal_links, weight: 4, auto: true,  desc: "İlgili sayfalara iç link" }
+      - { key: term_accuracy,  weight: 4, auto: false, desc: "Dilin tuzak terimlerinden kaçınılmış (sözlük brandpack'te)" }
