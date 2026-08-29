@@ -1,6 +1,9 @@
-# Tarama sonuçları veri sözleşmesi — v1.0
+# Tarama sonuçları veri sözleşmesi — v1.1
 
-Sürüm 1.0 · 29 Ağustos 2026 (Adım 8). Bu belge, kalite taraması sonuçlarının marka
+Sürüm 1.1 · 29 Ağustos 2026 (Adım 10: model yargısı alanları eklendi — geriye
+uyumlu ekleme, küçük sürüm artışı; v1.0 dosyaları dönüşümsüz okunmaya devam eder,
+yeni alanlar yoksa pano "değerlendirilmedi" gösterir).
+İlk sürüm 1.0 · 29 Ağustos 2026 (Adım 8). Bu belge, kalite taraması sonuçlarının marka
 deposuna nasıl yazıldığını ve panonun (dashboard) bu dosyaları nasıl okuyacağını tanımlar.
 Sözleşme sürümlenir: alan eklenmesi geriye uyumluysa küçük sürüm, alan değişir/kalkarsa
 büyük sürüm artar ve pano her iki sürümü de tanıyana kadar eski dosyalar dönüştürülmez.
@@ -19,8 +22,10 @@ results/
 
 - `run-id`: UTC zaman damgası `YYYYMMDDTHHMMSSZ` (örn. `20260829T141500Z`).
 - Yazan taraf: marka deposundaki `quality-scan` workflow'u (otomatik `GITHUB_TOKEN`,
-  `permissions: contents: write`; secret yok). Motor `--out-dir results/quality` ile
-  dosyaları üretir, workflow commit+push eder.
+  `permissions: contents: write`). Motor `--out-dir results/quality` ile
+  dosyaları üretir, workflow commit+push eder. Depo yazımı secret'sızdır;
+  model yargısı için `ANTHROPIC_API_KEY` repo secret'ı kullanılır (Adım 10 kararı —
+  sıfır-secret deseninin bilinçli tek istisnası; anahtar yoksa yargı atlanır, koşu düşmez).
 - `history/` asla silinmez/yeniden yazılmaz: geri bildirim döngüsü (6-8 hafta kuralı)
   eski koşulara bakmayı gerektirir.
 
@@ -39,6 +44,12 @@ results/
     "workflow_run": "4",                  // Actions koşu numarası; olmayabilir (null)
     "rubric_versions": {"product_page": "1.0", "blog_post": "1.1", "sector_page": "1.1"},
     "rubric_note": "şablon cetvel, uyarlanmamış (v1)",
+    "judge": {                            // v1.1: model yargısı yöntemi (Adım 10)
+      "enabled": true,                    // false ise: {"enabled": false, "reason": "..."}
+      "model": "claude-haiku-4-5",        // model kimliği — yöntemin parçası
+      "prompt_version": "1.0",            // judge_prompts.yml sürümü — yöntemin parçası
+      "requests": 20, "failures": 0
+    },
     "max_pages": 30,
     "pages_ok": 30                        // HTTP 200 dönen ve işlenen sayfa sayısı
   },
@@ -46,6 +57,8 @@ results/
     "scored_pages": 20,                   // cetvelle puanlanan
     "unscored_pages": 10,                 // archive/other: yalnız tuzak+çelişki tarandı
     "avg_auto_pct": 81.5,                 // puanlananların ortalama oto-%'si
+    "judged_pages": 20,                   // v1.1: model yargısı alan sayfa sayısı
+    "avg_judged_pct": 63.0,               // v1.1: ortalama model-% (oto'dan AYRI; yoksa null)
     "by_type": {"blog_post": {"pages": 19, "avg_auto_pct": 80.6}},
     "trap_terms": 0,
     "fact_conflicts": 1
@@ -57,12 +70,18 @@ results/
       "scored": true,                     // false ise puan alanları null olur
       "rubric_version": "1.0",
       "auto_earned": 25.5, "auto_possible": 26.0, "auto_pct": 98.1,
-      "unassessed_weight": 54.0,          // model yargılı kriterlerin toplam ağırlığı
+      "judged_earned": 19.0, "judged_possible": 30.0, "judged_pct": 63.3,
+                                          // v1.1: model puanı — oto alanlardan AYRI; yargı yoksa null
+      "unassessed_weight": 24.0,          // yargılanmamış kriterlerin toplam ağırlığı
+                                          // (v1.1: model puanladıkları artık burada sayılmaz)
       "criteria": [                       // yalnız scored=true sayfalarda dolu
         {"key": "moq", "weight": 8.0, "auto": true, "ratio": 1.0, "points": 8.0,
          "note": "MOQ ifadesi var: ..."},
-        {"key": "named_reference", "weight": 8.0, "auto": false, "ratio": null,
-         "points": null, "note": "değerlendirilmedi (model yargısı — sonraki adım)"}
+        {"key": "sampling", "weight": 5.0, "auto": false, "ratio": 0.5, "points": 2.5,
+         "judged_by": "model",            // v1.1: model puanı; ratio yalnız 0 / 0.5 / 1
+         "note": "model: <sayfadan kısa kanıt gerekçesi>"},
+        {"key": "real_photos", "weight": 6.0, "auto": false, "ratio": null,
+         "points": null, "note": "değerlendirilmedi (görsel yargısı gerektirir ... — sonraki adım)"}
       ]
     }
   ],
@@ -76,8 +95,14 @@ results/
 ```
 
 Dürüstlük kuralları (docs/method.md ile uyumlu):
-- `auto_pct` yalnız OTOMATİK kriterlerin yüzdesidir; model yargılı ağırlık
-  `unassessed_weight`te ayrı durur. Pano bu ikisini asla tek puanmış gibi göstermez.
+- `auto_pct` yalnız OTOMATİK kriterlerin yüzdesidir; `judged_pct` yalnız MODEL
+  yargısının yüzdesidir; yargılanamayan ağırlık `unassessed_weight`te durur.
+  Pano bu üçünü asla tek puanmış gibi göstermez, toplamaz.
+- Model yargısının yöntemi = model kimliği + sabit rubrik sürümü (`run.judge`);
+  ikisinden biri değişirse (yargının açılıp kapanması dahil) `changes.method_changed.judge`
+  true olur ve model puan farkları yorumsuz kıyaslanamaz.
+- Model erişilemezse koşu düşmez: kriterler "değerlendirilmedi" kalır,
+  neden `note`ta ve `run.judge`ta yazılıdır.
 - Vekil ölçümler kriterin `note` alanında açıkça yazılıdır; pano notu gösterebilmelidir.
 
 ## changes bloğu (koşular arası fark)
@@ -96,14 +121,17 @@ Sonraki koşularda:
   "first_run": false,
   "prev_run_id": "20260829T141500Z",
   "prev_timestamp_utc": "2026-08-29T14:15:00Z",
-  "method_changed": {"engine": false, "rubrics": false, "brandpack": false},
+  "method_changed": {"engine": false, "rubrics": false, "brandpack": false,
+                     "judge": false},  // v1.1: model/rubrik sürümü değişti veya yargı açılıp kapandı
   "new_pages": ["..."], "removed_pages": ["..."],
   "type_changes":  [{"url": "...", "prev": "other", "new": "blog_post"}],
   "score_changes": [{"url": "...", "prev_pct": 37.0, "new_pct": 80.0, "delta_pct": 43.0}],
+  "judged_score_changes": [ /* v1.1: model-% farkları — score_changes ile aynı yapı, AYRI liste */ ],
+  "summary": {"pages_changed": 1, "judged_pages_changed": 0,  // judged_* v1.1
+              "new_pages": 0, "removed_pages": 0,
+              "new_findings": 0, "resolved_findings": 1},
   "new_findings": [ /* finding nesneleri */ ],
-  "resolved_findings": [ /* önceki koşuda olup artık olmayanlar */ ],
-  "summary": {"pages_changed": 1, "new_pages": 0, "removed_pages": 0,
-              "new_findings": 0, "resolved_findings": 1}
+  "resolved_findings": [ /* önceki koşuda olup artık olmayanlar */ ]
 }
 ```
 
@@ -125,6 +153,7 @@ Sonraki koşularda:
      "file": "history/20260829T150000Z.json",
      "engine_rev": "...", "brandpack_rev": "...",
      "scored_pages": 20, "avg_auto_pct": 81.5,
+     "avg_judged_pct": 63.0,              // v1.1: ortalama model-% (yargı yoksa null)
      "trap_terms": 0, "fact_conflicts": 1,
      "changed_pages": 0}                  // ilk koşuda null
   ]
