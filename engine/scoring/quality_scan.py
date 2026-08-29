@@ -5,11 +5,15 @@ brandpack ile cetvel puanı üretir ve markdown rapor yazar. Sonuçlar bu sürü
 depoya YAZILMAZ; yalnız rapor (Actions Summary) üretilir.
 
 Sınıflandırma (jenerik; marka bilgisi yalnız brandpack'ten gelir):
-1. URL deseni: ürün/sektör/blog kalıpları
-2. Yapısal makale sinyali: og:type=article veya article:published_time → blog_post
-   (WordPress'te yazılar kök dizinde yaşayabilir; URL kalıbı tek başına yetmez)
-3. Kalanlarda: başlık/h1 içinde brandpack doğru terimi geçen sayfa ürün sayılır
-4. Kalanlar "other": cetvel puanı üretilmez, yalnız tuzak terim + çelişki taraması
+1. Arşiv/liste kalıbı (kategori, yazar, sayfalama, blog dizini) → "archive": liste
+   sayfası içerik cetveliyle puanlanmaz, yalnız tuzak terim + çelişki taranır
+2. URL deseni: ürün/sektör/blog kalıpları
+3. Yapısal makale sinyali → blog_post: og:type=article, article:published_time
+   veya JSON-LD @type Article/BlogPosting/NewsArticle (og:type'ı yanlış
+   yapılandırılmış sitelerde sinyal JSON-LD'den gelir; yazılar kök dizinde
+   yaşayabilir, URL kalıbı tek başına yetmez)
+4. Kalanlarda: başlık/h1 içinde brandpack doğru terimi geçen sayfa ürün sayılır
+5. Kalanlar "other": cetvel puanı üretilmez, yalnız tuzak terim + çelişki taraması
 
 Kullanım::
 
@@ -34,9 +38,11 @@ import yaml
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 from engine.sources.crawler import crawl  # noqa: E402
 from engine.scoring.scorer import (  # noqa: E402
-    BLOG_PATH, PRODUCT_PATH, SECTOR_PATH,
+    ARCHIVE_PATH, BLOG_PATH, PRODUCT_PATH, SECTOR_PATH,
     correct_terms, find_fact_conflicts, find_trap_terms, score_page,
 )
+
+ARTICLE_LD_TYPES = {"article", "blogposting", "newsarticle", "techarticle"}
 
 
 def load_brandpack(path: str) -> dict:
@@ -61,13 +67,20 @@ def load_rubrics(path: str) -> dict:
 
 
 def _is_article(page: dict) -> bool:
-    """Yapısal makale sinyali (jenerik): og:type=article veya yayın tarihi meta'sı."""
-    return (page.get("og_type") or "").strip().lower() == "article" or \
-        bool((page.get("published_time") or "").strip())
+    """Yapısal makale sinyali (jenerik): og:type=article, yayın tarihi meta'sı
+    veya JSON-LD @type Article/BlogPosting/NewsArticle."""
+    if (page.get("og_type") or "").strip().lower() == "article":
+        return True
+    if (page.get("published_time") or "").strip():
+        return True
+    lds = {str(t).strip().lower() for t in (page.get("ld_types") or [])}
+    return bool(lds & ARTICLE_LD_TYPES)
 
 
 def classify(page: dict, brandpack: dict) -> str:
     url = page.get("url", "")
+    if ARCHIVE_PATH.search(url):
+        return "archive"
     if PRODUCT_PATH.search(url):
         return "product_page"
     if SECTOR_PATH.search(url):

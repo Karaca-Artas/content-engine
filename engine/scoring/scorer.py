@@ -30,6 +30,13 @@ import re
 PRODUCT_PATH = re.compile(r"/(urun|uerun|product|products|urunler|cozum|solution)", re.IGNORECASE)
 SECTOR_PATH = re.compile(r"/(sektor|sector|industr|market|uygulama|application)", re.IGNORECASE)
 BLOG_PATH = re.compile(r"/(blog|haber|news|makale|article|rehber|guide|20\d{2}/)", re.IGNORECASE)
+# Arşiv/liste sayfaları: içerik cetveliyle puanlanmaz (kategori, yazar, sayfalama, blog dizini)
+ARCHIVE_PATH = re.compile(
+    r"/(category|kategori|categories|author|yazar)(/|$)"
+    r"|/page/\d+(/|$)"
+    r"|/blog(/\d+)?/?$",
+    re.IGNORECASE,
+)
 
 # ---------------------------------------------------------------- yardımcılar
 
