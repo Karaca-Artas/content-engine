@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Analitik bağlantı yapılandırması (Faz 2 — Kanal B veri tarafı)",
+  "description": "Search Console ve GA4 okuyucularının markaya özel kimlik BİLGİLERİ DEĞİL, yalnız adresleri. Kimlik Actions'ta kısa ömürlü jetonla (anahtarsız WIF) sağlanır; bu dosyada secret/anahtar yaşamaz. Motor kodu marka bilgisi içermez — bu dosya paketin parçasıdır (engine/performance/perf_scan.py okur).",
+  "type": "object",
+  "required": ["site", "gsc_property", "ga4_property"],
+  "properties": {
+    "site": {
+      "type": "string",
+      "description": "Sitenin kök URL'si (perf_scan --site değeri; workflow buradan okur)"
+    },
+    "gsc_property": {
+      "type": "string",
+      "description": "Search Console mülkü: 'sc-domain:example.com' (alan adı mülkü) veya URL-prefix ('https://www.example.com/')"
+    },
+    "ga4_property": {
+      "type": "string",
+      "pattern": "^[0-9]+$",
+      "description": "Sayısal GA4 mülk numarası (Yönetici → Mülk bilgileri)"
+    },
+    "window_days": {
+      "type": "integer",
+      "minimum": 7,
+      "maximum": 180,
+      "description": "Tarama penceresi (gün). Varsayılan 28."
+    },
+    "end_lag_days": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 10,
+      "description": "Pencere sonunun bugünden geriliği (GSC verisi 2-3 gün gecikmelidir). Varsayılan 3."
+    }
+  }
+}
