@@ -1,5 +1,8 @@
-# Tarama sonuçları veri sözleşmesi — v1.1
+# Tarama sonuçları veri sözleşmesi — v1.2
 
+Sürüm 1.2 · 30 Ağustos 2026 (Adım 14: YENİ, bağımsız `performance-scan-result`
+sözleşmesi eklendi — belgenin sonunda. Kalite sözleşmesi 1.1'de değişmeden durur;
+her sözleşme kendi `contract` + `contract_version` alanıyla sürümlenir).
 Sürüm 1.1 · 29 Ağustos 2026 (Adım 10: model yargısı alanları eklendi — geriye
 uyumlu ekleme, küçük sürüm artışı; v1.0 dosyaları dönüşümsüz okunmaya devam eder,
 yeni alanlar yoksa pano "değerlendirilmedi" gösterir).
@@ -176,3 +179,84 @@ SÖZLEŞMENİN değil, pano adımının kararıdır. Seçenekler: (a) marka depo
 Pages'i (private depoda Pages plana bağlıdır), (b) ayrıştırılmış/anonim özet JSON'un
 public bir hedefe kopyalanması, (c) panonun yerel/oturum içi açılması. Karar Ali'yle
 pano adımında verilecek; sözleşme her üç yolda da aynıdır.
+
+## performance-scan-result — v1.0 (Adım 14, Faz 2 / Kanal B veri tarafı)
+
+Search Console + GA4 verisinin koşu başına dökümü. Kalite sözleşmesinden
+BAĞIMSIZ sürümlenir. Dosya düzeni aynı desendir:
+
+```
+results/
+  performance/
+    latest.json          # son koşu — pano/sentez varsayılan olarak bunu okur
+    index.json           # koşu listesi (en yeni en üstte)
+    history/<run-id>.json
+```
+
+Yazan taraf: marka deposundaki `perf-scan` workflow'u. Google kimliği kısa
+ömürlü OAuth jetonudur (anahtarsız WIF — GitHub OIDC → Google STS; depoda
+kalıcı Google secret'ı YOKTUR, sıfır-secret deseni korunur). Salt okuma
+kapsamları: webmasters.readonly + analytics.readonly.
+
+```jsonc
+{
+  "contract": "performance-scan-result",
+  "contract_version": "1.0",
+  "run": {
+    "id": "20260830T160000Z", "timestamp_utc": "...", "site": "...",
+    "engine_rev": "...", "brandpack_rev": "...", "workflow_run": "1",
+    "window": {"start_date": "2026-07-31", "end_date": "2026-08-27",
+               "days": 28, "end_lag_days": 3},   // GSC 2-3 gün geriden gelir
+    "sources": {                                  // kaynak düşerse koşu düşmez
+      "gsc": {"property": "sc-domain:example.com", "ok": true, "rows": 120, "error": null},
+      "ga4": {"property": "336534572", "ok": true, "rows": 95, "error": null}
+    },
+    "quality_run_id": "20260830T104649Z"          // puanların alındığı kalite koşusu; yoksa null
+  },
+  "totals": {"pages": 130, "clicks": 210, "impressions": 9800, "sessions": 1400,
+             "matched_quality_pages": 20, "cannibal_queries": 3},
+  "pages": [                                      // gösterime göre azalan
+    {"path": "/products", "url": "https://www.example.com/products",
+     "clicks": 12, "impressions": 800, "ctr": 0.015, "position": 8.7,
+     "sessions": 40, "engaged_sessions": 22, "users": 35, "engagement_rate": 0.55,
+     "in_gsc": true, "in_ga4": true,
+     "top_queries": [{"query": "...", "clicks": 5, "impressions": 300, "position": 8.2}],
+     "quality": {"type": "product_page", "scored": true, "auto_pct": 62.0,
+                 "judged_pct": 70.0, "run_id": "..."},  // kalite eşleşmesi; yoksa null
+     "priority_auto": 30400.0}                    // (100 − auto_pct) × impressions — ÖNİZLEME
+  ],
+  "findings": [
+    {"kind": "cannibal_query", "query": "...", "total_impressions": 500,
+     "pages": [{"path": "...", "clicks": 1, "impressions": 220, "position": 9.1}],
+     "note": "vekil tespit, nihai yorum insana aittir"}
+  ],
+  "changes": {                                    // v1.0'da yalnız toplam farkları
+    "first_run": false, "prev_run_id": "...", "prev_timestamp_utc": "...",
+    "clicks_delta": 12, "impressions_delta": -40, "sessions_delta": 3,
+    "note": "pencereler örtüşebilir — 6-8 hafta kuralı; sayfa bazlı fark sonraki adım"
+  }
+}
+```
+
+Dürüstlük kuralları:
+- `priority_auto` bir ÖNİZLEMEDİR: yalnız OTO yüzdesiyle hesaplanır
+  ((100 − auto_pct) × gösterim, yöntem docs/method.md). Oto ve model puanı
+  burada da birleştirilmez; tam Kanal C sentezi (aksiyon kuyruğu, dört kutu,
+  aylık tavan) AYRI adımın sözleşmesidir.
+- Kanibalizm bulgusu vekil tespittir (sayfa ≥ 10 gösterim VE sorgu toplamının
+  ≥ %15'i olan ≥ 2 sayfa); menü/etiket etkisi ayrıştırılamaz, yorum insana kalır.
+- Kaynaklardan biri erişilemezse `sources.<k>.ok=false` + hata özeti yazılır,
+  koşu düşmez; İKİSİ de düşerse sonuç yazılmaz ve koşu başarısız sayılır.
+- GA4 `pagePath` sorgu dizesinden arındırılır; GSC tam URL'si yol'a indirgenir
+  (kök dışında sondaki `/` atılır) — birleştirme anahtarı bu normalleştirilmiş yoldur.
+
+### performance-scan-index (index.json)
+
+```jsonc
+{"contract": "performance-scan-index", "contract_version": "1.0",
+ "runs": [{"id": "...", "timestamp_utc": "...", "file": "history/....json",
+           "engine_rev": "...", "brandpack_rev": "...",
+           "window_start": "2026-07-31", "window_end": "2026-08-27",
+           "pages": 130, "clicks": 210, "impressions": 9800, "sessions": 1400,
+           "matched_quality_pages": 20, "cannibal_queries": 3}]}
+```
