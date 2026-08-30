@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Müşteri sık-soru dosyası (ANONİM)",
+  "description": "Müşteri yazışmalarından çıkarılan yapılandırılmış soru/terim dosyası. Ad, firma, fiyat, e-posta, telefon İÇERMEZ; kayıtlar ay hassasiyetinde tarih etiketlidir (yeni olan ağır basar). Tek seferlik taramayla oturum içinde üretilir, sihirbaz doğrulaması + kullanıcı onayıyla pakete girer (wizard/questions/ingest.py).",
+  "type": "object",
+  "required": ["generated_at", "coverage", "questions"],
+  "properties": {
+    "generated_at": { "type": "string", "description": "YYYY-MM-DD — dosyanın üretildiği gün" },
+    "source": { "type": "string", "description": "Kaynağın ANONİM tarifi (ör. 'e-posta kutusu, son 2 yıl, tek seferlik tarama'); adres/kişi yazılmaz" },
+    "approved_by": { "type": "string", "description": "Listeyi onaylayan kişi (rol/ad, kullanıcının kendisi)" },
+    "coverage": {
+      "type": "object",
+      "required": ["from", "to"],
+      "properties": {
+        "from": { "type": "string", "description": "YYYY-MM — taranan dönemin başı" },
+        "to": { "type": "string", "description": "YYYY-MM — taranan dönemin sonu" }
+      }
+    },
+    "questions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["question", "frequency", "first_seen", "last_seen"],
+        "properties": {
+          "question": { "type": "string", "description": "Kanonik soru başlığı — anonim; ad/firma/fiyat içeremez" },
+          "languages": { "type": "array", "items": { "type": "string" }, "description": "Sorunun görüldüğü diller (tr, en, ...)" },
+          "frequency": { "type": "integer", "minimum": 1, "description": "Taranan dönemde kaç ayrı talepte görüldü" },
+          "first_seen": { "type": "string", "description": "YYYY-MM" },
+          "last_seen": { "type": "string", "description": "YYYY-MM" },
+          "products": { "type": "array", "items": { "type": "string" }, "description": "İlgili ürün/konu etiketi (paketteki onaylı ürün adlarıyla uyumlu)" },
+          "customer_terms": { "type": "array", "items": { "type": "string" }, "description": "Müşterinin kendi kelimeleri/terimleri" },
+          "notes": { "type": "string", "description": "Anonim ek not (itiraz kalıbı, bağlam)" }
+        }
+      }
+    }
+  }
+}
