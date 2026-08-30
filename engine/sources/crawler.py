@@ -18,7 +18,10 @@ Kullanım::
 
 Dönen her kayıt: url, status, lang, title, meta_description, headings
 (h1/h2/h3 listesi), text (görünür metin), links (aynı alan adındaki iç
-bağlantılar), images_alt (alt metinleri), hreflang (dil -> url),
+bağlantılar), images_alt (alt metinleri),
+images (içerik görselleri: mutlak src + alt; jpg/png/webp, data: ve
+logo/icon/sprite kalıpları elenir, sayfa başına en çok 30 — görüş modeli
+yargısı için, Adım 12), hreflang (dil -> url),
 og_type (og:type meta değeri; WordPress yazılarda "article"),
 published_time (article:published_time meta değeri, varsa),
 ld_types (JSON-LD @type değerleri, küçük harf — og:type yanlış yapılandırılmış
@@ -49,6 +52,42 @@ SKIP_PATH = re.compile(
     re.IGNORECASE,
 )
 
+# İçerik görseli sayılan uzantılar (görüş modeli bunları değerlendirebilir)
+IMG_OK = re.compile(r"\.(jpe?g|png|webp)($|\?)", re.IGNORECASE)
+# İçerik olmayan görsel kalıpları (tema/arayüz görselleri — jenerik sezgisel)
+IMG_SKIP = re.compile(r"logo|icon|favicon|sprite|avatar|emoji|placeholder|spacer|captcha",
+                      re.IGNORECASE)
+MAX_IMAGES_PER_PAGE = 30
+
+
+def _content_images(page_url: str, raw: list[dict],
+                    limit: int = MAX_IMAGES_PER_PAGE) -> list[dict]:
+    """img etiketlerinden içerik görsellerini süz: mutlak URL, uzantı beyaz
+    listesi, tema kalıbı elemesi, tekilleştirme, tavan. Sezgisel bir süzgeçtir;
+    CSS arkaplan görselleri toplanamaz (bilinen sınır, notlarda açık)."""
+    out: list[dict] = []
+    seen: set[str] = set()
+    for im in raw:
+        src = (im.get("src") or "").strip()
+        if not src or src.startswith("data:"):
+            continue
+        absu = urllib.parse.urljoin(page_url, src)
+        p = urllib.parse.urlsplit(absu)
+        if p.scheme not in ("http", "https"):
+            continue
+        if not IMG_OK.search(p.path):
+            continue
+        if IMG_SKIP.search(absu):
+            continue
+        cu = urllib.parse.urlunsplit((p.scheme, p.netloc.lower(), p.path, p.query, ""))
+        if cu in seen:
+            continue
+        seen.add(cu)
+        out.append({"src": cu, "alt": (im.get("alt") or "")[:120]})
+        if len(out) >= limit:
+            break
+    return out
+
 
 class _PageParser(HTMLParser):
     """Tek geçişte başlık, meta, h1-h3, görünür metin, bağlantı, alt ve hreflang toplar."""
@@ -67,6 +106,7 @@ class _PageParser(HTMLParser):
         self.headings: dict[str, list[str]] = {"h1": [], "h2": [], "h3": []}
         self.links: list[tuple[str, str]] = []  # (href, anchor metni)
         self.images_alt: list[str] = []
+        self.images: list[dict] = []  # {src, alt} — ham; süzme _content_images'ta
         self.hreflang: dict[str, str] = {}
         self.ld_types: list[str] = []
         self._in_ldjson = False
@@ -104,10 +144,14 @@ class _PageParser(HTMLParser):
         elif tag == "a" and a.get("href"):
             self._cur_link_href = a["href"]
             self._cur_link_text = []
-        elif tag == "img" and a.get("alt"):
-            alt = a["alt"].strip()
+        elif tag == "img":
+            alt = (a.get("alt") or "").strip()
             if alt:
                 self.images_alt.append(alt)
+            # WordPress tembel yükleme varyantları da kapsanır
+            src = (a.get("src") or a.get("data-src") or a.get("data-lazy-src") or "").strip()
+            if src:
+                self.images.append({"src": src, "alt": alt})
         elif tag == "script" and (a.get("type") or "").lower() == "application/ld+json":
             self._in_ldjson = True
             self._ldjson_buf = []
@@ -350,6 +394,7 @@ def crawl(config: dict, log=None) -> list[dict]:
             "text": text[:20000],
             "links": internal_links[:200],
             "images_alt": parser.images_alt[:50],
+            "images": _content_images(url, parser.images),
             "hreflang": parser.hreflang,
             "og_type": parser.og_type,
             "published_time": parser.published_time,
