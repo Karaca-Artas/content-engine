@@ -14,10 +14,12 @@ engine.scoring.compare ile üretilir.
 
 --judge verilirse auto olmayan kriterler sabit rubrikle (judge_prompts.yml)
 modele gönderilir (engine.scoring.judge; anahtar ANTHROPIC_API_KEY ortam
-değişkeninden). Model puanı oto puandan AYRI alanlarda tutulur
-(judged_earned/judged_possible/judged_pct) ve asla tek puanda birleştirilmez.
-Anahtar yoksa veya model erişilemezse koşu düşmez; kriterler "değerlendirilmedi"
-kalır ve nedeni rapora yazılır.
+değişkeninden). Görsel kriterler (real_photos, tech_drawing) sayfa başına ayrı
+bir görüş isteğiyle puanlanır (Adım 12; --no-vision kapatır) — tarayıcının
+topladığı içerik görselleri API'ye URL kaynağı olarak gider. Model puanı oto
+puandan AYRI alanlarda tutulur (judged_earned/judged_possible/judged_pct) ve
+asla tek puanda birleştirilmez. Anahtar yoksa veya model erişilemezse koşu
+düşmez; kriterler "değerlendirilmedi" kalır ve nedeni rapora yazılır.
 
 Sınıflandırma (jenerik; marka bilgisi yalnız brandpack'ten gelir):
 1. Arşiv/liste kalıbı (kategori, yazar, sayfalama, blog dizini) → "archive": liste
@@ -335,10 +337,16 @@ def render_markdown(site: str, results: list[dict], other_findings: list[dict],
     scored = [r for r in results if r["has_criteria"]]
     scored.sort(key=pct)
     if judge_info and judge_info.get("enabled"):
+        if judge_info.get("vision_enabled"):
+            vis = (f" Görüş yargısı: {judge_info.get('vision_requests', 0)} istek, "
+                   f"{judge_info.get('vision_failures', 0)} hata.")
+        else:
+            vis = " Görüş yargısı: kapalı (--no-vision)."
         judge_line = (f"- Model yargısı: **açık** — model `{judge_info['model']}`, "
                       f"rubrik v{judge_info['prompt_version']}, "
-                      f"{judge_info['requests']} istek, {judge_info['failures']} hata. "
-                      "Model puanı oto puandan AYRI sütunda; ikisi toplanmaz.")
+                      f"{judge_info['requests']} istek, {judge_info['failures']} hata."
+                      + vis +
+                      " Model puanı oto puandan AYRI sütunda; ikisi toplanmaz.")
     else:
         reason = (judge_info or {}).get("reason", "model yargısı istenmedi")
         judge_line = f"- Model yargısı: kapalı ({reason}); model yargılı kriterler \"değerlendirilmedi\"."
@@ -376,7 +384,8 @@ def render_markdown(site: str, results: list[dict], other_findings: list[dict],
         lines.append(f"**{r['url']}** — oto %{pct(r):.0f}{jtxt}")
         for c in r["criteria"]:
             if (c["ratio"] or 0) < 1.0 and c["points"] is not None:
-                kind = "oto" if c["auto"] else "model"
+                kind = ("oto" if c["auto"]
+                        else "görsel" if c.get("judged_by") == "vision" else "model")
                 lines.append(f"- {c['key']} [{kind}] ({c['points']}/{c['weight']}): {c['note']}")
         lines.append("")
     findings = [f for r in results for f in r["findings"]] + other_findings
@@ -426,6 +435,9 @@ def main(argv: list[str] | None = None) -> int:
                          "(ANTHROPIC_API_KEY ortam değişkeni gerekir)")
     ap.add_argument("--judge-model", default="",
                     help="model kimliği (boşsa engine.scoring.judge varsayılanı)")
+    ap.add_argument("--no-vision", dest="vision", action="store_false",
+                    help="görsel kriterlerin görüş modeli yargısını kapat "
+                         "(Adım 12; varsayılan --judge ile birlikte açık)")
     ap.add_argument("--judge-prompts", default=DEFAULT_JUDGE_PROMPTS,
                     help="sabit rubrik dosyası (judge_prompts.yml)")
     args = ap.parse_args(argv)
@@ -469,12 +481,17 @@ def main(argv: list[str] | None = None) -> int:
         else:
             prompts = load_prompts(args.judge_prompts)
             judge = Judge(prompts, model=args.judge_model or DEFAULT_MODEL,
-                          api_key=api_key)
+                          api_key=api_key, vision=args.vision)
             for row, page, rubric in scored_pairs:
                 judge.judge_page(row, page, brandpack, rubric)
             judge_info = {"enabled": True, "model": judge.model,
                           "prompt_version": str(prompts["version"]),
-                          "requests": judge.requests, "failures": judge.failures}
+                          "requests": judge.requests, "failures": judge.failures,
+                          # Adım 12 ek alanları (sözleşme v1.1'e eklemeli — mevcut
+                          # alanların anlamı değişmez):
+                          "vision_enabled": bool(args.vision),
+                          "vision_requests": judge.vision_requests,
+                          "vision_failures": judge.vision_failures}
 
     changes = None
     if args.out_dir:
