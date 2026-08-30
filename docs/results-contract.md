@@ -48,7 +48,10 @@ results/
       "enabled": true,                    // false ise: {"enabled": false, "reason": "..."}
       "model": "claude-haiku-4-5",        // model kimliği — yöntemin parçası
       "prompt_version": "1.0",            // judge_prompts.yml sürümü — yöntemin parçası
-      "requests": 20, "failures": 0
+      "requests": 20, "failures": 0,
+      "vision_enabled": true,             // v1.1 eklemeli alanlar (Adım 12): görsel
+      "vision_requests": 3,               // kriterlerin (real_photos, tech_drawing) görüş
+      "vision_failures": 0                // modeli yargısı; eski kayıtlarda bu alanlar yok
     },
     "max_pages": 30,
     "pages_ok": 30                        // HTTP 200 dönen ve işlenen sayfa sayısı
@@ -80,8 +83,11 @@ results/
         {"key": "sampling", "weight": 5.0, "auto": false, "ratio": 0.5, "points": 2.5,
          "judged_by": "model",            // v1.1: model puanı; ratio yalnız 0 / 0.5 / 1
          "note": "model: <sayfadan kısa kanıt gerekçesi>"},
-        {"key": "real_photos", "weight": 6.0, "auto": false, "ratio": null,
-         "points": null, "note": "değerlendirilmedi (görsel yargısı gerektirir ... — sonraki adım)"}
+        {"key": "real_photos", "weight": 6.0, "auto": false, "ratio": 1.0,
+         "points": 6.0, "judged_by": "vision", // v1.1 eklemeli (Adım 12): görüş modeli
+         "note": "model(görsel): <hangi görsellere dayandığı>"},
+        {"key": "faq_coverage", "weight": 10.0, "auto": false, "ratio": null,
+         "points": null, "note": "değerlendirilmedi (bilgi paketinde müşteri sık-soru verisi henüz yok)"}
       ]
     }
   ],
