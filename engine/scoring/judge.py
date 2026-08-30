@@ -24,6 +24,11 @@ Dürüstlük kuralları (docs/method.md ile uyumlu):
   kalır ve nedeni notuna yazılır.
 - Rubrikte `skip` listesindeki kriterler (görsel yargısı, eksik veri) modele
   hiç gönderilmez; nedenleri kriter notuna yazılır.
+- `requires` işaretli kriterler (ör. faq_coverage → customer_questions) yalnız
+  paket o veriyi içeriyorsa gönderilir; yoksa "değerlendirilmedi" kalır ve
+  nedeni nota yazılır — jenerik motor, verisi eksik pakette de çalışır
+  (Adım 13). Sık-soru listesi isteğe ayrı bölüm olarak eklenir; en sık ve en
+  yeni kayıtlar önce gelir (yeni olan ağır basar — docs/method.md).
 
 API: Anthropic Messages API (api.anthropic.com), anahtar ANTHROPIC_API_KEY
 ortam değişkeninden okunur (Actions'ta repo secret'ı — bu projenin sıfır-secret
@@ -51,6 +56,7 @@ TEXT_CHAR_LIMIT = 12000
 MAX_ALT_TEXTS = 30
 EVIDENCE_CHAR_LIMIT = 240
 MAX_VISION_IMAGES = 8
+MAX_FAQ_LINES = 20  # isteğe giren en çok sık-soru satırı (Adım 13)
 
 _FENCE_RE = re.compile(r"^```[a-zA-Z]*\s*|\s*```$")
 
@@ -174,9 +180,11 @@ class Judge:
         parts.append("Sayfa metni:\n" + text)
         return "\n".join(parts)
 
-    def _judgeable(self, rubric: dict) -> tuple[list[dict], list[dict], dict]:
+    def _judgeable(self, rubric: dict,
+                   brandpack: dict) -> tuple[list[dict], list[dict], dict]:
         """(metin isteğine gidecekler, görüş isteğine gidecekler,
-        atlanacaklar {key: neden})."""
+        atlanacaklar {key: neden}). `requires` işaretli kriterler yalnız
+        paket o veriyi içeriyorsa gönderilir (Adım 13)."""
         send, vision_send, skipped = [], [], {}
         skip = self.prompts.get("skip") or {}
         known = self.prompts.get("criteria") or {}
@@ -189,7 +197,12 @@ class Judge:
                 if key in skip:
                     skipped[key] = str(skip[key])
                 elif key in known:
-                    send.append(crit)
+                    req = (known[key] or {}).get("requires")
+                    if req and not (brandpack or {}).get(req):
+                        skipped[key] = (f"pakette {req}.json yok — "
+                                        "değerlendirilemez")
+                    else:
+                        send.append(crit)
                 elif key in vision_known:
                     if self.vision:
                         vision_send.append(crit)
@@ -216,6 +229,51 @@ class Judge:
             crit_lines.append(line)
         return crit_lines
 
+    # ---- müşteri sık-soru bağlamı (Adım 13) ------------------------------
+
+    @staticmethod
+    def _month_index(ym: str) -> int | None:
+        m = re.match(r"^(\d{4})-(\d{2})$", str(ym))
+        return int(m.group(1)) * 12 + int(m.group(2)) - 1 if m else None
+
+    @classmethod
+    def _faq_weight(cls, q: dict, ref: str) -> float:
+        """Sıralama ağırlığı = sıklık × yenilik: tarama sonuna göre son 12
+        ayda görülen kayıt tam, daha eskisi yarım ağırlık alır (yeni olan
+        ağır basar — docs/method.md)."""
+        freq = q.get("frequency") if isinstance(q.get("frequency"), int) else 1
+        a, b = cls._month_index(q.get("last_seen", "")), cls._month_index(ref)
+        recency = 1.0 if a is not None and b is not None and b - a <= 12 else 0.5
+        return freq * recency
+
+    def _faq_block(self, send: list[dict], brandpack: dict) -> str:
+        """`requires: customer_questions` işaretli kriter gidiyorsa, isteğe
+        eklenecek anonim sık-soru bölümü; yoksa boş dize."""
+        known = self.prompts.get("criteria") or {}
+        if not any((known.get(c["key"]) or {}).get("requires") ==
+                   "customer_questions" for c in send):
+            return ""
+        cq = brandpack.get("customer_questions") or {}
+        qs = [q for q in cq.get("questions", []) if isinstance(q, dict)]
+        if not qs:
+            return ""
+        ref = str((cq.get("coverage") or {}).get("to", ""))
+        qs.sort(key=lambda q: (-self._faq_weight(q, ref),
+                               str(q.get("question", ""))))
+        shown = qs[:MAX_FAQ_LINES]
+        lines = []
+        for q in shown:
+            meta = (f"sıklık {q.get('frequency', '?')}, "
+                    f"{q.get('first_seen', '?')}–{q.get('last_seen', '?')}")
+            if q.get("languages"):
+                meta += "; dil: " + ",".join(map(str, q["languages"]))
+            if q.get("products"):
+                meta += "; ürün: " + ", ".join(map(str, q["products"]))
+            lines.append(f"- {q.get('question', '')} ({meta})")
+        return (f"=== MÜŞTERİ SIK-SORU LİSTESİ (anonim; toplam {len(qs)} soru, "
+                f"en ağırlıklı {len(shown)} tanesi — sıklık × yenilik) ===\n"
+                + "\n".join(lines) + "\n\n")
+
     def _user_prompt(self, page: dict, rubric: dict,
                      send: list[dict], brandpack: dict) -> str:
         crit_lines = self._crit_lines(send, self.prompts["criteria"])
@@ -223,7 +281,8 @@ class Judge:
             f"Sayfa tipi: {rubric.get('type', '')}\n\n"
             "=== MARKA BAĞLAMI (onaylı gerçekler + terimler; bunun dışında gerçek üretme) ===\n"
             + self._brand_context(brandpack) + "\n\n"
-            "=== SAYFA KANITI ===\n" + self._page_evidence(page) + "\n\n"
+            + self._faq_block(send, brandpack)
+            + "=== SAYFA KANITI ===\n" + self._page_evidence(page) + "\n\n"
             "=== PUANLANACAK KRİTERLER ===\n" + "\n".join(crit_lines) + "\n\n"
             "Her kriteri çıpalara göre puanla. Yanıt SADECE JSON."
         )
@@ -291,7 +350,7 @@ class Judge:
         gerçekten yargılanamayan ağırlığı gösterir. Hatada: kriterler
         "değerlendirilmedi" kalır, neden notlara yazılır, koşu düşmez.
         """
-        send, vision_send, skipped = self._judgeable(rubric)
+        send, vision_send, skipped = self._judgeable(rubric, brandpack)
         rows = {c["key"]: c for c in row.get("criteria", []) if not c.get("auto")}
         earned = possible = unassessed = 0.0
 

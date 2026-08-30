@@ -68,8 +68,11 @@ DEFAULT_JUDGE_PROMPTS = os.path.join(os.path.dirname(__file__), "judge_prompts.y
 
 
 def load_brandpack(path: str) -> dict:
+    # customer_questions (Adım 13): varsa yüklenir; judge `requires`
+    # mekanizması faq_coverage'ı bu veriye bağlar — yoksa kriter
+    # "değerlendirilmedi" kalır, koşu düşmez.
     bp = {}
-    for name in ("facts", "terms"):
+    for name in ("facts", "terms", "customer_questions"):
         fp = os.path.join(path, f"{name}.json")
         if os.path.exists(fp):
             with open(fp, encoding="utf-8") as f:

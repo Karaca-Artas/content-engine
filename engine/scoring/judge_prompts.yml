@@ -1,4 +1,5 @@
-# Model yargısı sabit rubriği — sürüm 1.1 (Adım 10 metin + Adım 12 görsel)
+# Model yargısı sabit rubriği — sürüm 1.2
+# (Adım 10 metin + Adım 12 görsel + Adım 13 faq_coverage)
 #
 # Bu dosya SABİT rubriktir: model yargılı kriterlerin puan çıpaları burada yaşar.
 # Serbest bırakılırsa model her koşuda farklı şey söyler ve koşular kıyaslanamaz;
@@ -9,7 +10,7 @@
 # Jenerik motor dosyası — marka bilgisi içermez (docs/method.md §9); markaya
 # özel her şey (onaylı gerçekler, terimler, referans listesi) çağrı sırasında
 # brandpack'ten eklenir.
-version: "1.1"
+version: "1.2"
 
 system: |
   Sen B2B içerik kalitesi değerlendiricisisin. Görevin, sana verilen SABİT
@@ -82,6 +83,16 @@ criteria:
       - { ratio: 1.0, desc: "İhracat/teslim bilgisi somut (Incoterm, pazar, lojistik veya teslim koşulu)" }
       - { ratio: 0.5, desc: "İhracata değinilmiş ama koşulsuz/genel (\"dünyaya gönderiyoruz\" düzeyi)" }
       - { ratio: 0.0, desc: "İhracat/teslim bilgisi yok" }
+  # Adım 13: pakette müşteri sık-soru dosyası (customer_questions.json) varsa
+  # değerlendirilir; yoksa `requires` gereği "değerlendirilmedi" kalır ve
+  # nedeni nota yazılır — koşu düşmez. Sık-soru listesi isteğe, sayfa
+  # kanıtından AYRI bir bölüm olarak eklenir (judge.py).
+  faq_coverage:
+    requires: customer_questions
+    anchors:
+      - { ratio: 1.0, desc: "Verilen sık-soru listesindeki bu sayfanın ürünü/konusuyla ilgili soruların çoğunun cevabı sayfada açıkça var" }
+      - { ratio: 0.5, desc: "Listeden bazı sorulara değinilmiş ama çoğu cevapsız ya da cevaplar yüzeysel/dolaylı" }
+      - { ratio: 0.0, desc: "Listedeki sorulardan hiçbirinin cevabı sayfada yok" }
 
 # ---------------------------------------------------------------------------
 # GÖRSEL YARGI (Adım 12) — sayfa görselleri ayrı bir görüş isteğiyle puanlanır.
@@ -122,5 +133,6 @@ vision_criteria:
 
 # Bu sürümde modele GÖNDERİLMEYEN kriterler ve nedenleri. Bunlar
 # "değerlendirilmedi" kalır; neden, kriter notuna yazılır.
-skip:
-  faq_coverage: "bilgi paketinde müşteri sık-soru verisi henüz yok"
+# (Adım 13: faq_coverage skip'ten çıktı — artık `requires` mekanizmasıyla
+# paket verisine bağlı; pakette dosya yoksa yine değerlendirilmez.)
+skip: {}
