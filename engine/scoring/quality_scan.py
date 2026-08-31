@@ -279,6 +279,8 @@ def build_scan(site: str, results: list[dict], other_findings: list[dict],
             "by_type": by_type,
             "trap_terms": sum(1 for f in findings if f.get("kind") == "trap_term"),
             "fact_conflicts": sum(1 for f in findings if f.get("kind") == "fact_conflict"),
+            # Adım 16 ek alanı (sözleşme v1.1'e eklemeli): erişilemeyen sayfa sayısı
+            "broken_pages": sum(1 for f in findings if f.get("kind") == "broken_page"),
         },
         "pages": pages,
         "findings": findings,
@@ -329,6 +331,7 @@ def write_outputs(scan: dict, out_dir: str) -> dict:
         "avg_judged_pct": scan["totals"].get("avg_judged_pct"),
         "trap_terms": scan["totals"]["trap_terms"],
         "fact_conflicts": scan["totals"]["fact_conflicts"],
+        "broken_pages": scan["totals"].get("broken_pages", 0),
         "changed_pages": (None if scan["changes"].get("first_run")
                           else scan["changes"]["summary"]["pages_changed"]),
     }
@@ -345,6 +348,8 @@ def _fmt_finding(f: dict) -> str:
     if f.get("kind") == "fact_conflict":
         return (f"çelişki {f.get('field')}: sayfada {f.get('page_value')} / "
                 f"onaylı {f.get('approved_value')} ({f.get('url')})")
+    if f.get("kind") == "broken_page":
+        return f"erişilemeyen sayfa HTTP {f.get('http_status')} ({f.get('url')})"
     return str(f)
 
 
@@ -474,6 +479,14 @@ def render_markdown(site: str, results: list[dict], other_findings: list[dict],
                   for f in conflicts]
     else:
         lines.append("Çelişki bulunamadı.")
+    broken = [f for f in other_findings if f.get("kind") == "broken_page"]
+    lines += ["", f"### Erişilemeyen sayfalar ({len(broken)}) — 301/geri getirme kararı insana aittir", ""]
+    if broken:
+        lines += ["| Sayfa | HTTP | Hata |", "|---|---|---|"]
+        lines += [f"| {f['url']} | {f.get('http_status')} | {f.get('error') or '—'} |"
+                  for f in broken]
+    else:
+        lines.append("Tüm sayfalar erişilebilir.")
     others = [r for r in results if not r["has_criteria"]]
     lines += ["", f"### Cetvel dışı sayfalar ({len(others)}) — yalnız tuzak/çelişki tarandı", ""]
     lines += [f"- {r['url']} ({r['rubric_type'] or 'other'})" for r in others]
@@ -535,6 +548,17 @@ def main(argv: list[str] | None = None) -> int:
     results, other_findings, scored_pairs = [], [], []
     for page in pages:
         if page.get("status") != 200:
+            # Adım 16 (sınır #9): erişilemeyen sayfa artık sonuç dosyasına
+            # bulgu olarak yazılır — GSC'de gösterim almaya devam eden 404'ler
+            # ancak böyle veriden işlenebilir. 301/geri getirme kararı insana
+            # aittir (site işi); motor yalnız işaretler.
+            other_findings.append({
+                "kind": "broken_page",
+                "url": page.get("url", ""),
+                "http_status": page.get("status") or 0,
+                "error": (page.get("error") or "")[:120] or None,
+                "note": "sayfa canlıda erişilemedi — 301/geri getirme kararı insana aittir",
+            })
             continue
         ptype = classify(page, brandpack)
         rubric = rubrics.get(ptype)

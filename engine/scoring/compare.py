@@ -33,6 +33,9 @@ def finding_key(f: dict) -> tuple:
         return (kind, f.get("url", ""), str(f.get("trap", "")).lower())
     if kind == "fact_conflict":
         return (kind, f.get("url", ""), f.get("field", ""), str(f.get("page_value", "")))
+    if kind == "broken_page":
+        # hata metni koşudan koşuya değişebilir; kimlik = sayfa + HTTP durumu
+        return (kind, f.get("url", ""), str(f.get("http_status", "")))
     return (kind, f.get("url", ""), str(sorted(f.items())))
 
 
