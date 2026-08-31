@@ -1,5 +1,10 @@
-# Tarama sonuçları veri sözleşmesi — v1.2
+# Tarama sonuçları veri sözleşmesi — v1.3
 
+Sürüm 1.3 · 31 Ağustos 2026 (Adım 16: YENİ, bağımsız `action-queue-result`
+sözleşmesi eklendi — belgenin sonunda. Kalite sözleşmesi v1.1'e EKLEMELİ
+alanlar: `findings[]` yeni `broken_page` türü + `totals.broken_pages` —
+erişilemeyen tohum sayfalar artık sonuç dosyasına yazılır; eski dosyalarda bu
+alanların yokluğu "bulgu yok" okunur).
 Sürüm 1.2 · 30 Ağustos 2026 (Adım 14: YENİ, bağımsız `performance-scan-result`
 sözleşmesi eklendi — belgenin sonunda. Kalite sözleşmesi 1.1'de değişmeden durur;
 her sözleşme kendi `contract` + `contract_version` alanıyla sürümlenir).
@@ -74,7 +79,8 @@ results/
     "avg_judged_pct": 63.0,               // v1.1: ortalama model-% (oto'dan AYRI; yoksa null)
     "by_type": {"blog_post": {"pages": 19, "avg_auto_pct": 80.6}},
     "trap_terms": 0,
-    "fact_conflicts": 1
+    "fact_conflicts": 1,
+    "broken_pages": 9                     // v1.1 eklemeli alan (Adım 16); eski kayıtlarda yok
   },
   "pages": [
     {
@@ -104,7 +110,10 @@ results/
   "findings": [                           // TÜM bulgular (cetvel dışı sayfalar dahil), düz liste
     {"kind": "trap_term", "url": "...", "trap": "...", "correct": "...", "count": 2},
     {"kind": "fact_conflict", "url": "...", "field": "moq",
-     "page_value": "40.000", "approved_value": 1000, "note": "... insan kararı (§6)"}
+     "page_value": "40.000", "approved_value": 1000, "note": "... insan kararı (§6)"},
+    {"kind": "broken_page", "url": "...", "http_status": 404, "error": null,
+     "note": "sayfa canlıda erişilemedi — 301/geri getirme kararı insana aittir"}
+                                          // v1.1 eklemeli tür (Adım 16); kimlik = url + http_status
   ],
   "changes": { /* aşağıda */ }
 }
@@ -266,4 +275,104 @@ Dürüstlük kuralları:
            "window_start": "2026-07-31", "window_end": "2026-08-27",
            "pages": 130, "clicks": 210, "impressions": 9800, "sessions": 1400,
            "matched_quality_pages": 20, "cannibal_queries": 3}]}
+```
+
+## action-queue-result — v1.0 (Adım 16, Faz 3 / Kanal C sentezi)
+
+Aylık aksiyon kuyruğu: son performans + son kalite koşusunun sentezi
+(docs/method.md §2-3 — öncelik formülü, aylık tavan, dört kutu).
+
+```
+results/
+  actions/
+    latest.json
+    index.json           # contract: action-queue-index
+    history/<run-id>.json
+```
+
+Yazan taraf: marka deposundaki `synthesis` workflow'u (otomatik `GITHUB_TOKEN`,
+secret'sız; model çağrısı yoktur, koşu maliyeti 0).
+
+```jsonc
+{
+  "contract": "action-queue-result",
+  "contract_version": "1.0",
+  "run": {
+    "id": "20260831T170000Z", "timestamp_utc": "...", "site": "...",
+    "engine_rev": "...", "brandpack_rev": "...", "workflow_run": "1",
+    "inputs": {                       // sentezin dayandığı iki koşu — dürüstlük
+      "performance_run_id": "...", "performance_window": {...},
+      "quality_run_id": "...", "quality_rubric_note": "..."
+    },
+    "thresholds": {                   // sabit kutu eşikleri, dosyada açık durur
+      "priority": "(100 − auto_pct) × impressions — yalnız oto puan",
+      "cap": 4,
+      "a_title_meta": {"min_auto_pct": 70, "max_position": 10,
+                        "min_impressions": 100, "max_ctr": 0.01},
+      "b_enrich": {"max_auto_pct": 70, "min_impressions": 1}
+    }
+  },
+  "totals": {"queue": 4, "waiting": 12, "urgent_broken": 9,
+             "consolidation_candidates": 3, "watch_pages": 6,
+             "unscored_with_impressions": 40, "skipped_rejected": 0,
+             "strategic": 1,
+             "boxes": {"title_meta": 1, "enrich": 15,
+                        "merge_or_remove": 12, "new_page": null}},
+  "queue": [                          // aylık kuyruk — en fazla cap satır
+    {"rank": 1, "path": "/...", "url": "...", "type": "product_page",
+     "box": "enrich",                 // title_meta | enrich
+     "reason": "atamanın gerekçe metni",
+     "auto_pct": 33.7, "judged_pct": 41.0,   // model puanı BİLGİDİR, hesaba karışmaz
+     "impressions": 523, "clicks": 2, "ctr": 0.004, "position": 12.3,
+     "top_query": "...", "priority_auto": 34674.9,
+     "quality_run_id": "...",
+     "missing_criteria": [{"key": "size_table", "points": 0, "weight": 12, "gap": 12}],
+     "effort": "yüksek"}              // düşük | orta | yüksek
+  ],
+  "waiting": [ /* kuyruk satırıyla aynı yapı; tavan dışı, en fazla 20 */ ],
+  "urgent": [                         // 404'ler — (c) ADAYI, aylık tavanı YEMEZ
+    {"path": "/...", "box": "merge_or_remove", "http_status": 404,
+     "impressions": 1457, "clicks": 3, "position": 8.6, "reason": "..."}
+  ],
+  "consolidation": [                  // kanibal etiket/arşiv sayfaları — (c) ADAYI
+    {"path": "/tag/...", "box": "merge_or_remove", "queries": ["..."],
+     "competing_with": ["/..."], "impressions": 220, "reason": "..."}
+  ],
+  "unscored_top": [{"path": "/...", "impressions": 300}],  // önceliklenemedi (bilgi)
+  "skipped_rejected": [{"path": "/...", "reason": "...", "rejected_on": "..."}],
+  "strategic": [                      // site genelinde hep sıfır kriter → TEK satır
+    {"criterion": "tech_drawing", "pages_scored": 12, "weight": 8, "note": "..."}
+  ],
+  "notes": ["dürüstlük notları — üretim kuralları"],
+  "changes": {"first_run": false, "prev_run_id": "...", "prev_timestamp_utc": "...",
+              "queue_added": ["/..."], "queue_removed": [],
+              "urgent_added": [], "urgent_resolved": ["/..."],
+              "note": "kuyruk her ay yeniden sıralanır; çıkan satır 'çözüldü' demek değildir"}
+}
+```
+
+Dürüstlük kuralları:
+- Öncelik ve kutu ataması YALNIZ oto puan + GSC/GA4 metrikleriyle yapılır;
+  model puanı (`judged_pct`) satırda bilgi olarak taşınır, hesaba karışmaz.
+- Öncelik kalite `latest.json`'ından YENİDEN hesaplanır (performans
+  dosyasındaki `priority_auto` önizlemesi eski bir kalite koşusuna dayanabilir);
+  iki girdinin koşu kimliği `run.inputs`'ta durur.
+- (d) `new_page` kutusu otomatik atanmaz (`boxes.new_page: null`): gerçek
+  talep tespiti Kapı 1 / Kanal A işidir.
+- `urgent` ve `consolidation` (c) kutusunun ADAYLARIDIR; 301/birleştirme/
+  kaldırma kararı insana aittir ve bu listeler aylık `cap` tavanını yemez.
+- Ret hafızası (`brandpack/live/rejections.json`) uygulanır; atlanan sayfalar
+  `skipped_rejected`'ta görünür kalır.
+- Girdi dosyalarından biri yoksa/sözleşmeye uymuyorsa koşu BAŞARISIZ olur —
+  boş kuyruk yazılmaz (yanıltıcı olur).
+
+### action-queue-index (index.json)
+
+```jsonc
+{"contract": "action-queue-index", "contract_version": "1.0",
+ "runs": [{"id": "...", "timestamp_utc": "...", "file": "history/....json",
+           "engine_rev": "...", "brandpack_rev": "...",
+           "performance_run_id": "...", "quality_run_id": "...",
+           "queue": 4, "waiting": 12, "urgent_broken": 9,
+           "consolidation_candidates": 3, "strategic": 1}]}
 ```
