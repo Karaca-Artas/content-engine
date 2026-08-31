@@ -1,15 +1,70 @@
-# Kanal C — aylık sentez (İSKELET: şimdilik yalnız elle tetiklenir)
-name: monthly-synthesis
+# Kanal C — aylık sentez ŞABLONU (Adım 16'da dolduruldu).
+#
+# Bu dosya MARKA DEPOSUNA kopyalanacak şablondur (quality-scan/perf-scan gibi
+# gerçek koşular marka deposunda döner; motor deposunda results/ yoktur).
+# Kopyalarken `repository:` alanındaki OWNER değiştirilir. Secret GEREKMEZ:
+# sentez model çağrısı yapmaz (0 $), depo yazımı otomatik GITHUB_TOKEN iledir.
+#
+# Girdi: results/performance/latest.json + results/quality/latest.json
+# Çıktı: results/actions/ (sözleşme: action-queue-result v1.0)
+name: synthesis
 on:
   workflow_dispatch: {}
-  # schedule:                    # Faz 3'te açılacak
+  # schedule:                    # aylık otomasyonu açmak ayrı insan kararıdır
   #   - cron: "0 6 1 * *"        # her ayın 1'i 06:00 UTC
+permissions:
+  contents: write
 jobs:
   synthesis:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4            # marka deposu (kendisi)
+      - uses: actions/checkout@v4            # jenerik motor (public)
+        with:
+          repository: OWNER/content-engine
+          path: engine-repo
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
-      - name: Sentez (iskelet)
-        run: echo "Faz 3'te doldurulacak — engine/channels/channel_c_synthesis.py"
+      - name: Kanal C sentezi — aylık aksiyon kuyruğu
+        run: |
+          SITE=$(python -c "import json;print(json.load(open('brandpack/live/analytics.json'))['site'])")
+          ENGINE_REV=$(git -C engine-repo rev-parse HEAD)
+          BRAND_REV=$(git rev-parse HEAD:brandpack)
+          python engine-repo/engine/channels/channel_c_synthesis.py \
+            --site "$SITE" \
+            --perf-latest results/performance/latest.json \
+            --quality-latest results/quality/latest.json \
+            --brandpack-dir brandpack/live \
+            --cap 4 \
+            --out-dir results/actions \
+            --summary synthesis-summary.md \
+            --engine-rev "$ENGINE_REV" \
+            --brandpack-rev "$BRAND_REV" \
+            --run-number "${{ github.run_number }}"
+      - name: Sonuçları depoya yaz
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add results/actions
+          if git diff --cached --quiet; then
+            echo "Değişiklik yok — commit atlanıyor."
+          else
+            git commit -m "synthesis: aksiyon kuyruğu (koşu ${{ github.run_number }})"
+            git push
+          fi
+      - name: Özet
+        run: |
+          cat synthesis-summary.md >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo ""
+            echo "### Sonuç dosyaları (tam içerik — konteynerden doğrulama için)"
+            for f in results/actions/latest.json results/actions/index.json; do
+              echo "<details><summary><code>$f</code></summary>"
+              echo ""
+              echo '```json'
+              cat "$f"
+              echo '```'
+              echo "</details>"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
