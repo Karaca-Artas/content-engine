@@ -38,7 +38,14 @@ Kullanım::
         --brandpack-dir ../brandpack-repo/brandpack/live \
         --rubrics-dir engine/scoring/rubrics \
         --max-pages 30 --delay 3 --summary rapor.md \
+        --perf-latest ../brandpack-repo/results/performance/latest.json \
         --out-dir ../brandpack-repo/results/quality
+
+Sayfa seçimi (Adım 15): --perf-latest verilirse sayfalar GSC gösterimine göre
+önceliklenir (perf_priority_urls) — tavan dolana kadar önce en gösterimli
+sayfalar taranır; sıralamaya kalite/model puanı KARIŞMAZ. Dosya yoksa koşu
+düşmez, varsayılan seçim (site haritası + iç link) sürer; mod her koşuda
+run.page_selection alanına ve Summary'ye yazılır.
 
 Bağımlılık: PyYAML (cetvel şablonları için); kalanı stdlib.
 """
@@ -55,7 +62,7 @@ import sys
 import yaml
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
-from engine.sources.crawler import crawl  # noqa: E402
+from engine.sources.crawler import SKIP_PATH, crawl  # noqa: E402
 from engine.scoring.compare import diff  # noqa: E402
 from engine.scoring.scorer import (  # noqa: E402
     ARCHIVE_PATH, BLOG_PATH, PRODUCT_PATH, SECTOR_PATH,
@@ -117,6 +124,55 @@ def run_rubric_note(rubrics: dict) -> str:
     return note
 
 
+# ------------------------------------------- sayfa seçimi (Adım 15)
+
+def perf_priority_urls(perf_path: str, site: str, cap: int) -> tuple[list[str], dict]:
+    """Performans sonuçlarından (results/performance/latest.json) gösterime
+    göre sıralı öncelikli URL listesi üretir.
+
+    Dürüstlük kuralları:
+    - Sıralama YALNIZ gösterimle yapılır; kalite/model puanı seçime karışmaz.
+    - Dosya yoksa, bozuksa veya sözleşme uymuyorsa koşu DÜŞMEZ: boş liste +
+      "default" modlu seçim meta'sı döner (davranış eski varsayılanla aynı).
+
+    Liste her zaman site köküyle başlar (ana sayfa garanti). Tarayıcının
+    SKIP_PATH kuralına takılan yollar (ör. /tag/) listeye alınmaz ki
+    "seeded" sayısı gerçekten taranabilir sayfaları saysın.
+    Dönen meta bloğu sözleşmeye EKLEMELİ `page_selection` alanıdır.
+    """
+    base = site.rstrip("/")
+    default = {"mode": "default",
+               "note": "site haritası + iç link sırası (performans verisi yok)"}
+    if not perf_path:
+        return [], default
+    try:
+        with open(perf_path, encoding="utf-8") as f:
+            perf = json.load(f)
+    except (OSError, ValueError) as e:
+        default["note"] = f"performans dosyası okunamadı ({str(e)[:80]}) — varsayılan seçim"
+        return [], default
+    if perf.get("contract") != "performance-scan-result":
+        default["note"] = "performans dosyası sözleşmeye uymuyor — varsayılan seçim"
+        return [], default
+    rows = [p for p in perf.get("pages", [])
+            if isinstance(p, dict) and p.get("path", "").startswith("/")
+            and (p.get("impressions") or 0) > 0]
+    rows.sort(key=lambda p: -(p.get("impressions") or 0))
+    urls, seen = [base + "/"], {"/"}
+    for p in rows:
+        path = p["path"]
+        if path in seen or SKIP_PATH.search(path):
+            continue
+        seen.add(path)
+        urls.append(base + path)
+        if len(urls) >= cap:
+            break
+    return urls, {"mode": "performance-priority",
+                  "perf_run_id": (perf.get("run") or {}).get("id"),
+                  "perf_window": (perf.get("run") or {}).get("window"),
+                  "seeded": len(urls)}
+
+
 def _is_article(page: dict) -> bool:
     """Yapısal makale sinyali (jenerik): og:type=article, yayın tarihi meta'sı
     veya JSON-LD @type Article/BlogPosting/NewsArticle."""
@@ -160,7 +216,8 @@ def judged_pct(row: dict) -> float | None:
 # ------------------------------------------------- sözleşme (JSON) üretimi
 
 def build_scan(site: str, results: list[dict], other_findings: list[dict],
-               rubrics: dict, args, judge_info: dict | None = None) -> dict:
+               rubrics: dict, args, judge_info: dict | None = None,
+               page_selection: dict | None = None) -> dict:
     """Sonuç listesini veri sözleşmesi v1.1 yapısına çevirir (changes hariç)."""
     now = _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0)
     run_id = args.run_id or now.strftime("%Y%m%dT%H%M%SZ")
@@ -207,6 +264,8 @@ def build_scan(site: str, results: list[dict], other_findings: list[dict],
             "judge": judge_info or {"enabled": False,
                                     "reason": "model yargısı istenmedi (--judge yok)"},
             "max_pages": args.max_pages,
+            # Adım 15 ek alanı (sözleşme v1.1'e eklemeli): sayfa seçim modu
+            "page_selection": page_selection or {"mode": "default"},
             "pages_ok": len(results),
         },
         "totals": {
@@ -336,7 +395,8 @@ def render_markdown(site: str, results: list[dict], other_findings: list[dict],
                     engine_rev: str, brandpack_rev: str,
                     changes: dict | None = None, persisted: bool = False,
                     judge_info: dict | None = None,
-                    rubrics: dict | None = None) -> str:
+                    rubrics: dict | None = None,
+                    page_selection: dict | None = None) -> str:
     scored = [r for r in results if r["has_criteria"]]
     scored.sort(key=pct)
     if judge_info and judge_info.get("enabled"):
@@ -359,6 +419,13 @@ def render_markdown(site: str, results: list[dict], other_findings: list[dict],
         f"- Site: {site}",
         f"- Motor sürümü: `{engine_rev}` · Brandpack sürümü: `{brandpack_rev}`",
         f"- Cetvel: **{run_rubric_note(rubrics or {})}**.",
+        (f"- Sayfa seçimi: **GSC gösterimine göre öncelikli** — "
+         f"{page_selection.get('seeded', '?')} sayfa performans koşusu "
+         f"`{page_selection.get('perf_run_id', '?')}`ndan tohumlandı; kalan yer "
+         f"site haritası + iç linkle doldu. Sıralama YALNIZ gösterimle yapılır, "
+         f"puan seçime karışmaz."
+         if page_selection and page_selection.get("mode") == "performance-priority"
+         else f"- Sayfa seçimi: varsayılan ({(page_selection or {}).get('note', 'site haritası + iç link sırası')})."),
         judge_line,
         ("- Sonuçlar depoya yazıldı: `results/quality/` (sözleşme v" + CONTRACT_VERSION + ")."
          if persisted else "- Sonuçlar depoya YAZILMADI (yalnız bu rapor)."),
@@ -423,6 +490,10 @@ def main(argv: list[str] | None = None) -> int:
                     help="paketteki uyarlanmış cetvel dizini; boşsa "
                          "<brandpack-dir>/rubrics otomatik denenir (Adım 11)")
     ap.add_argument("--max-pages", type=int, default=30)
+    ap.add_argument("--perf-latest", default="",
+                    help="performans sonuç dosyası (results/performance/latest.json); "
+                         "verilirse sayfa seçimi GSC gösterimine göre önceliklenir "
+                         "(Adım 15). Dosya yoksa koşu düşmez, varsayılan seçim sürer")
     ap.add_argument("--delay", type=float, default=3.0)
     ap.add_argument("--summary", default="")
     ap.add_argument("--engine-rev", default="?")
@@ -452,10 +523,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.pages_json:
         with open(args.pages_json, encoding="utf-8") as f:
             pages = json.load(f)
+        page_selection = {"mode": "pages-json", "note": "hazır tarama dökümü (test)"}
     else:
+        seeds, page_selection = perf_priority_urls(
+            args.perf_latest, args.site, args.max_pages)
         pages = crawl({"site": {"url": args.site},
                        "crawler": {"delay_seconds": args.delay,
-                                   "max_pages": args.max_pages}})
+                                   "max_pages": args.max_pages,
+                                   "priority_seeds": seeds}})
 
     results, other_findings, scored_pairs = [], [], []
     for page in pages:
@@ -499,13 +574,14 @@ def main(argv: list[str] | None = None) -> int:
     changes = None
     if args.out_dir:
         scan = build_scan(args.site, results, other_findings, rubrics, args,
-                          judge_info=judge_info)
+                          judge_info=judge_info, page_selection=page_selection)
         changes = write_outputs(scan, args.out_dir)
 
     md = render_markdown(args.site, results, other_findings,
                          args.engine_rev, args.brandpack_rev,
                          changes=changes, persisted=bool(args.out_dir),
-                         judge_info=judge_info, rubrics=rubrics)
+                         judge_info=judge_info, rubrics=rubrics,
+                         page_selection=page_selection)
     if args.summary:
         with open(args.summary, "a", encoding="utf-8") as f:
             f.write(md)
