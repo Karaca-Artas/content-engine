@@ -294,7 +294,10 @@ def crawl(config: dict, log=None) -> list[dict]:
 
     crawler alt anahtarları: delay_seconds (vars. 3), max_pages (vars. 30),
     kill_switch_file (vars. ".crawl-stop"), timeout (vars. 20),
-    extra_seeds (ek başlangıç URL listesi).
+    extra_seeds (ek başlangıç URL listesi),
+    priority_seeds (Adım 15: kuyruk BAŞINA konan öncelikli URL listesi —
+    sayfa tavanı dolana kadar önce bunlar taranır; site haritası ve iç
+    linkler kalan yeri doldurur. Boşsa davranış eskisiyle birebir aynıdır).
     """
     log = log or (lambda msg: print(msg, file=sys.stderr))
     site_url = config["site"]["url"].rstrip("/")
@@ -322,7 +325,8 @@ def crawl(config: dict, log=None) -> list[dict]:
         log(f"[crawler] robots.txt okunamadı ({e}) — nazik varsayılanlarla devam")
         rp = None
 
-    queue: list[str] = [site_url + "/"]
+    queue: list[str] = [str(u) for u in c.get("priority_seeds", []) or []]
+    queue.append(site_url + "/")
     for u in _sitemap_urls(site_url, timeout, extra=robots_sitemaps):
         queue.append(u)
     queue.extend(c.get("extra_seeds", []))
