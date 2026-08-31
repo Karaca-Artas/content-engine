@@ -57,6 +57,13 @@ results/
       "vision_failures": 0                // modeli yargısı; eski kayıtlarda bu alanlar yok
     },
     "max_pages": 30,
+    "page_selection": {                   // v1.1 eklemeli alan (Adım 15): sayfa seçim modu.
+      "mode": "performance-priority",     // "default" | "performance-priority" | "pages-json".
+      "perf_run_id": "20260830T101112Z",  // kaynak performans koşusu (yalnız priority modda)
+      "perf_window": {"start_date": "…", "end_date": "…"},
+      "seeded": 30                        // gösterime göre tohumlanan URL sayısı (kök dahil).
+    },                                    // Seçim sıralaması YALNIZ gösterimle yapılır; kalite/
+                                          // model puanı seçime karışmaz. Eski kayıtlarda alan yok.
     "pages_ok": 30                        // HTTP 200 dönen ve işlenen sayfa sayısı
   },
   "totals": {
