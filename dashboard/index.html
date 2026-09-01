@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>İçerik Motoru Panosu</title>
+<!-- Pano v1.2 — kalite (quality-scan v1.x) + performans (performance-scan v1.0) +
+     aksiyon kuyruğu (action-queue v1.0) sözleşmelerini okur. Tek dosya, bağımlılıksız, jenerik. -->
 <style>
   :root {
     color-scheme: light;
@@ -42,6 +44,9 @@
   .chip { display:inline-block; background:var(--chip); color:var(--ink-2); border-radius:999px;
           padding:.05rem .55rem; font-size:.75rem; white-space:nowrap; }
   .chip.warn { color:var(--ink); }
+  .chip.box-title_meta { border:1px solid var(--seq); color:var(--ink); }
+  .chip.box-enrich { border:1px solid var(--seq2); color:var(--ink); }
+  .chip.box-merge_or_remove { border:1px solid var(--serious); color:var(--ink); }
   table { border-collapse:collapse; width:100%; }
   th { text-align:left; color:var(--muted); font-weight:500; font-size:.78rem;
        border-bottom:1px solid var(--axis); padding:.3rem .5rem; }
@@ -71,12 +76,18 @@
   .cols2 { display:grid; grid-template-columns:1fr 1fr; gap:0 1.5rem; }
   @media (max-width:700px) { .cols2 { grid-template-columns:1fr; } }
   code { background:var(--chip); border-radius:4px; padding:0 .3rem; }
+  .tabs { display:flex; gap:.5rem; flex-wrap:wrap; margin:1rem 0 0; }
+  .tabs button { border-radius:999px; padding:.4rem .95rem; color:var(--ink-2); }
+  .tabs button.active { border-color:var(--seq); color:var(--ink); font-weight:650; }
+  .tabs button .cnt { color:var(--muted); font-size:.78rem; }
+  .card.urgent { border-color:var(--critical); }
 </style>
 </head>
 <body>
 <main>
   <h1>İçerik Motoru Panosu</h1>
-  <p class="sub" id="siteLine">Kalite taraması sonuçları — <code>results/quality</code> sözleşmesi v1.0.
+  <p class="sub" id="siteLine">Tarama sonuçları — <code>results/quality</code> (v1.x) ·
+     <code>results/performance</code> (v1.0) · <code>results/actions</code> (v1.0) sözleşmeleri.
      Pano yalnız gösterir; onay düğmesi taşımaz.</p>
 
   <div id="banners"></div>
@@ -85,8 +96,9 @@
     <h2>Veri kaynağı</h2>
     <div class="cols2">
       <div>
-        <p class="ink2" style="margin-top:0"><strong>1 — Dosyadan aç:</strong> <code>index.json</code>,
-        <code>latest.json</code> ve istersen <code>history/*.json</code> dosyalarını buraya bırak.</p>
+        <p class="ink2" style="margin-top:0"><strong>1 — Dosyadan aç:</strong> kalite, performans veya
+        aksiyon kuyruğu <code>index.json</code> / <code>latest.json</code> /
+        <code>history/*.json</code> dosyalarını bırak — hangi aileye ait olduğu içeriğinden anlaşılır.</p>
         <div class="drop" id="drop">Dosyaları sürükle-bırak<br>
           <label style="text-decoration:underline;cursor:pointer">veya seç
             <input type="file" id="filePick" multiple accept=".json,application/json" hidden>
@@ -95,10 +107,11 @@
       </div>
       <div>
         <p class="ink2" style="margin-top:0"><strong>2 — GitHub'dan çek</strong> (private depo, salt-okunur
-        ince-taneli anahtar):</p>
+        ince-taneli anahtar). <code>quality</code>, <code>performance</code> ve <code>actions</code>
+        alt dizinlerinin üçü de denenir; olmayan aile sekmesinde "veri yok" görünür:</p>
         <div class="row">
           <input type="text" id="ghRepo" class="grow" placeholder="kullanıcı/depo (örn. hesap/marka-deposu)">
-          <input type="text" id="ghPath" class="grow" placeholder="yol" value="results/quality">
+          <input type="text" id="ghPath" class="grow" placeholder="kök yol" value="results">
         </div>
         <div class="row" style="margin-top:.5rem">
           <input type="password" id="ghToken" class="grow" placeholder="GitHub anahtarı (yalnız Contents: Read)">
@@ -110,7 +123,14 @@
     </div>
   </section>
 
-  <div id="app" hidden>
+  <nav class="tabs" id="tabs" hidden>
+    <button data-tab="quality">Kalite <span class="cnt" id="tabCntQ"></span></button>
+    <button data-tab="perf">Performans <span class="cnt" id="tabCntP"></span></button>
+    <button data-tab="actions">Aksiyon kuyruğu <span class="cnt" id="tabCntA"></span></button>
+  </nav>
+
+  <!-- ============ KALİTE SEKMESİ ============ -->
+  <div id="tab-quality" hidden>
     <section class="card">
       <div class="row" style="align-items:center">
         <h2 style="margin:0">Koşu</h2>
@@ -157,13 +177,119 @@
 
     <p class="kv" id="metaLine"></p>
   </div>
+
+  <!-- ============ PERFORMANS SEKMESİ ============ -->
+  <div id="tab-perf" hidden>
+    <section class="card">
+      <div class="row" style="align-items:center">
+        <h2 style="margin:0">Koşu</h2>
+        <select id="pRunSel"></select>
+        <span class="kv" id="pRunMeta"></span>
+      </div>
+      <div class="row" style="margin-top:.9rem" id="pTiles"></div>
+      <div id="pSources" style="margin-top:.5rem"></div>
+      <p class="legendnote"><code>priority_auto</code> = (100 − oto%) × gösterim — yalnız
+      <strong>oto</strong> puanla hesaplanan <strong>önizlemedir</strong>; oto ve model puanı
+      burada da birleştirilmez. Nihai aylık kuyruk "Aksiyon kuyruğu" sekmesindedir.</p>
+    </section>
+
+    <section class="card">
+      <h2>Öncelik önizlemesi</h2>
+      <div class="scroll"><table id="pPriority"></table></div>
+    </section>
+
+    <section class="card">
+      <h2>Kanibalizm bulguları</h2>
+      <div id="pCannibal"></div>
+      <p class="legendnote">Vekil tespit (sorgunun gösteriminden ≥ %15 pay alan ≥ 2 sayfa);
+      menü/etiket etkisi ayrıştırılamaz — nihai yorum insana aittir.</p>
+    </section>
+
+    <section class="card">
+      <h2>Sayfalar (gösterime göre)</h2>
+      <div class="scroll"><table id="pPages"></table></div>
+      <div id="pPagesMore" class="kv"></div>
+    </section>
+
+    <section class="card">
+      <h2>Koşular</h2>
+      <div class="scroll"><table id="pRuns"></table></div>
+    </section>
+
+    <section class="card">
+      <h2>Önceki koşuya göre değişim</h2>
+      <div id="pChanges"></div>
+    </section>
+
+    <p class="kv" id="pMeta"></p>
+  </div>
+
+  <!-- ============ AKSİYON KUYRUĞU SEKMESİ ============ -->
+  <div id="tab-actions" hidden>
+    <section class="card">
+      <div class="row" style="align-items:center">
+        <h2 style="margin:0">Koşu</h2>
+        <select id="aRunSel"></select>
+        <span class="kv" id="aRunMeta"></span>
+      </div>
+      <div class="row" style="margin-top:.9rem" id="aTiles"></div>
+      <div id="aInputs" style="margin-top:.5rem"></div>
+      <p class="legendnote">Öncelik ve kutu ataması <strong>yalnız oto puan + GSC/GA4
+      metrikleriyle</strong> yapılır; model puanı satırda bilgidir, hesaba karışmaz.
+      (d) yeni-sayfa kutusu otomatik atanmaz — gerçek talep tespiti Kapı 1 / Kanal A işidir.</p>
+    </section>
+
+    <section class="card">
+      <h2 id="aQueueTitle">Aylık aksiyon kuyruğu</h2>
+      <div class="scroll"><table id="aQueue"></table></div>
+      <div id="aWaiting"></div>
+    </section>
+
+    <section class="card urgent" id="aUrgentCard">
+      <h2>ACİL — erişilemeyen sayfalar</h2>
+      <p class="kv" style="margin-top:-.4rem">Bu liste (c) kutusunun ADAYIDIR ve aylık tavanı
+      yemez; 301 / geri getirme / kaldırma kararı insana aittir.</p>
+      <div class="scroll"><table id="aUrgent"></table></div>
+    </section>
+
+    <section class="card">
+      <h2>Kanibal birleştirme adayları</h2>
+      <div id="aConsolidation"></div>
+      <p class="legendnote">(c) kutusunun adayları — birleştirme/kaldırma kararı insana aittir;
+      aylık tavanı yemez.</p>
+    </section>
+
+    <section class="card">
+      <h2>Stratejik bulgular ve diğer listeler</h2>
+      <div id="aStrategic"></div>
+      <div id="aExtras"></div>
+    </section>
+
+    <section class="card">
+      <h2>Koşular</h2>
+      <div class="scroll"><table id="aRuns"></table></div>
+    </section>
+
+    <section class="card">
+      <h2>Önceki koşuya göre değişim</h2>
+      <div id="aChanges"></div>
+    </section>
+
+    <p class="kv" id="aMeta"></p>
+  </div>
 </main>
 
 <script>
 "use strict";
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const state = { index:null, results:{}, order:[], selected:null };
+const FAMS = ["quality","perf","actions"];
+const state = {
+  quality:{ index:null, results:{}, order:[], selected:null },
+  perf:   { index:null, results:{}, order:[], selected:null },
+  actions:{ index:null, results:{}, order:[], selected:null },
+  tab: "quality"
+};
 
 /* ---------- yardımcılar ---------- */
 function banner(msg, cls) {
@@ -181,7 +307,9 @@ function fmtTs(iso){
   return d.toLocaleString("tr-TR", {day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"});
 }
 function fmtPct(v){ return (v==null) ? "—" : (Math.round(v*10)/10).toLocaleString("tr-TR") + "%"; }
+function fmtCtr(v){ return (v==null) ? "—" : (Math.round(v*1000)/10).toLocaleString("tr-TR") + "%"; }
 function fmtNum(v){ return (v==null) ? "—" : Number(v).toLocaleString("tr-TR"); }
+function fmtNum1(v){ return (v==null) ? "—" : (Math.round(v*10)/10).toLocaleString("tr-TR"); }
 function shortUrl(u, site){
   try {
     const x = new URL(u);
@@ -190,17 +318,32 @@ function shortUrl(u, site){
     return p === "" || p === "/" ? "/ (ana sayfa)" : decodeURIComponent(p);
   } catch(e){ return u; }
 }
+function shortPath(p){
+  if (p == null) return "—";
+  if (/^https?:/.test(p)) return shortUrl(p);
+  return p === "/" ? "/ (ana sayfa)" : p;
+}
 const TYPE_TR = { product_page:"ürün", sector_page:"sektör", blog_post:"blog", archive:"arşiv", other:"diğer" };
 function typeChip(t){ return '<span class="chip">'+esc(TYPE_TR[t]||t||"?")+'</span>'; }
+const BOX_TR = { title_meta:"başlık/meta", enrich:"zenginleştir", merge_or_remove:"birleştir/kaldır", new_page:"yeni sayfa" };
+function boxChip(b){ return '<span class="chip box-'+esc(b)+'">'+esc(BOX_TR[b]||b||"?")+'</span>'; }
 function methodChanged(res){
   const m = res && res.changes && res.changes.method_changed;
   return !!(m && (m.engine || m.rubrics || m.brandpack || m.judge));
 }
 
-/* ---------- sözleşme doğrulama ---------- */
+/* ---------- sözleşme doğrulama + yönlendirme ---------- */
+const CONTRACTS = {
+  "quality-scan-result":      ["quality","result"],
+  "quality-scan-index":       ["quality","index"],
+  "performance-scan-result":  ["perf","result"],
+  "performance-scan-index":   ["perf","index"],
+  "action-queue-result":      ["actions","result"],
+  "action-queue-index":       ["actions","index"]
+};
 function checkContract(obj, fname) {
   const c = obj && obj.contract, v = obj && obj.contract_version;
-  if (c !== "quality-scan-result" && c !== "quality-scan-index") {
+  if (!CONTRACTS[c]) {
     banner("<strong>"+esc(fname)+"</strong>: tanınmayan sözleşme (<code>"+esc(c)+"</code>) — dosya atlandı.", "err");
     return null;
   }
@@ -208,31 +351,33 @@ function checkContract(obj, fname) {
     banner("<strong>"+esc(fname)+"</strong>: sözleşme sürümü <code>"+esc(v)+"</code> bu panonun tanıdığı 1.x değil — dosya atlandı.", "err");
     return null;
   }
-  return c;
+  return CONTRACTS[c];
 }
 function ingest(obj, fname) {
-  const c = checkContract(obj, fname);
-  if (!c) return false;
-  if (c === "quality-scan-index") { state.index = obj; }
+  const route = checkContract(obj, fname);
+  if (!route) return false;
+  const [fam, kind] = route;
+  if (kind === "index") { state[fam].index = obj; }
   else {
     const id = obj.run && obj.run.id;
     if (!id) { banner("<strong>"+esc(fname)+"</strong>: run.id yok — dosya atlandı.", "err"); return false; }
-    state.results[id] = obj;
+    state[fam].results[id] = obj;
   }
   return true;
 }
-function rebuildOrder(){
-  // koşu sırası: index varsa index (en yeni üstte); yoksa yüklü sonuç dosyalarından
-  if (state.index && Array.isArray(state.index.runs)) {
-    state.order = state.index.runs.map(r => r.id);
-    for (const id of Object.keys(state.results))
-      if (!state.order.includes(id)) state.order.unshift(id);
+function rebuildOrder(fam){
+  const st = state[fam];
+  if (st.index && Array.isArray(st.index.runs)) {
+    st.order = st.index.runs.map(r => r.id);
+    for (const id of Object.keys(st.results))
+      if (!st.order.includes(id)) st.order.unshift(id);
   } else {
-    state.order = Object.keys(state.results).sort().reverse();
+    st.order = Object.keys(st.results).sort().reverse();
   }
-  if (!state.selected || !(state.order.includes(state.selected)))
-    state.selected = state.order.find(id => state.results[id]) || state.order[0] || null;
+  if (!st.selected || !(st.order.includes(st.selected)))
+    st.selected = st.order.find(id => st.results[id]) || st.order[0] || null;
 }
+function rebuildAll(){ FAMS.forEach(rebuildOrder); }
 
 /* ---------- veri kaynakları ---------- */
 async function readFiles(fileList) {
@@ -242,14 +387,14 @@ async function readFiles(fileList) {
     try { const obj = JSON.parse(await f.text()); if (ingest(obj, f.name)) ok++; }
     catch(e){ banner("<strong>"+esc(f.name)+"</strong>: JSON okunamadı ("+esc(e.message)+").", "err"); }
   }
-  if (ok) { rebuildOrder(); render(); }
+  if (ok) { rebuildAll(); render(); }
 }
 const LS_CFG = "ce_dash_cfg", LS_TOK = "ce_dash_token";
 function loadCfg(){
   try {
     const c = JSON.parse(localStorage.getItem(LS_CFG) || "{}");
     if (c.repo) $("ghRepo").value = c.repo;
-    if (c.path) $("ghPath").value = c.path;
+    if (c.path) $("ghPath").value = c.path.replace(/\/(quality|performance|actions)\/?$/, "");
     const t = localStorage.getItem(LS_TOK); if (t) $("ghToken").value = t;
   } catch(e){}
 }
@@ -264,45 +409,78 @@ async function ghGet(repo, path, token, file){
   const headers = { "Accept": "application/vnd.github.raw+json", "X-GitHub-Api-Version":"2022-11-28" };
   if (token) headers["Authorization"] = "Bearer " + token;
   const r = await fetch(url, { headers });
-  if (!r.ok) throw new Error(file + " → HTTP " + r.status);
+  if (!r.ok) { const e = new Error(file + " → HTTP " + r.status); e.status = r.status; throw e; }
   return JSON.parse(await r.text());
+}
+async function ghFetchFamily(repo, base, token, sub, famLabel){
+  const path = base ? base + "/" + sub : sub;
+  let idx;
+  try { idx = await ghGet(repo, path, token, "index.json"); }
+  catch(e){
+    if (e.status === 404) { banner("<code>"+esc(path)+"</code> bulunamadı — "+esc(famLabel)+" sekmesi boş kalacak.", "warn"); return 0; }
+    throw e;
+  }
+  let ok = ingest(idx, path + "/index.json") ? 1 : 0;
+  try { if (ingest(await ghGet(repo, path, token, "latest.json"), path + "/latest.json")) ok++; }
+  catch(e){ banner("<code>"+esc(path)+"/latest.json</code> çekilemedi ("+esc(e.message)+").", "warn"); }
+  const fam = CONTRACTS[idx.contract] ? CONTRACTS[idx.contract][0] : null;
+  const runs = (idx.runs || []).slice(0, 30);
+  let fail = 0;
+  for (const r of runs) {
+    if (fam && state[fam].results[r.id]) continue;
+    try { if (ingest(await ghGet(repo, path, token, r.file), path + "/" + r.file)) ok++; }
+    catch(e){ fail++; }
+  }
+  if (fail) banner("<code>"+esc(path)+"</code>: "+fail+" geçmiş koşu dosyası çekilemedi (liste yine de gösteriliyor).", "warn");
+  return ok;
 }
 async function ghFetchAll(){
   clearBanners();
-  const repo = $("ghRepo").value.trim(), path = $("ghPath").value.trim().replace(/\/+$/,""),
+  const repo = $("ghRepo").value.trim(),
+        base = $("ghPath").value.trim().replace(/\/+$/,"").replace(/\/(quality|performance|actions)$/, ""),
         token = $("ghToken").value.trim();
   if (!/^[^\/\s]+\/[^\/\s]+$/.test(repo)) { banner("Depo adı <code>kullanıcı/depo</code> biçiminde olmalı.", "err"); return; }
-  saveCfg(repo, path, token);
+  saveCfg(repo, base, token);
   const btn = $("ghFetch"); btn.disabled = true; btn.textContent = "Çekiliyor…";
   try {
-    const idx = await ghGet(repo, path, token, "index.json");
-    if (!ingest(idx, "index.json")) return;
-    const latest = await ghGet(repo, path, token, "latest.json");
-    ingest(latest, "latest.json");
-    const runs = (idx.runs || []).slice(0, 30);
-    let fail = 0;
-    for (const r of runs) {
-      if (state.results[r.id]) continue;
-      try { ingest(await ghGet(repo, path, token, r.file), r.file); }
-      catch(e){ fail++; }
-    }
-    if (fail) banner(fail + " geçmiş koşu dosyası çekilemedi (liste yine de gösteriliyor).", "warn");
-    rebuildOrder(); render();
+    let total = 0;
+    total += await ghFetchFamily(repo, base, token, "quality", "Kalite");
+    total += await ghFetchFamily(repo, base, token, "performance", "Performans");
+    total += await ghFetchFamily(repo, base, token, "actions", "Aksiyon kuyruğu");
+    if (!total) { banner("Hiçbir sonuç ailesi çekilemedi — kök yolun altında <code>quality</code> / <code>performance</code> / <code>actions</code> bekleniyor.", "err"); return; }
+    rebuildAll(); render();
   } catch(e){
     banner("GitHub'dan çekilemedi: " + esc(e.message) +
       ". Anahtarın <em>yalnız bu depoya</em>, <em>Contents: Read</em> izniyle açılmış olmalı.", "err");
   } finally { btn.disabled = false; btn.textContent = "Veriyi çek"; }
 }
 
-/* ---------- görünümler ---------- */
+/* ---------- ortak görünüm parçaları ---------- */
 function tile(v, l, n){
   return '<div class="tile grow"><div class="v">'+v+'</div><div class="l">'+l+'</div>'+
          (n?('<div class="n">'+n+'</div>'):'')+'</div>';
 }
+function listBlock(title, arr, fmt){
+  if (!arr || !arr.length) return "";
+  return '<p style="margin:.6rem 0 .2rem"><strong>'+title+'</strong> ('+arr.length+')</p>'+
+         '<ul style="margin:.2rem 0">'+arr.map(fmt).join("")+'</ul>';
+}
+function fillRunSel(fam, selId){
+  const st = state[fam], sel = $(selId);
+  sel.innerHTML = st.order.filter(id => st.results[id]).map(id => {
+    const isLatest = id === st.order[0];
+    const w = fam === "quality" && methodChanged(st.results[id]) ? " ⚠️" : "";
+    return '<option value="'+esc(id)+'"'+(id===st.selected?' selected':'')+'>'+
+      esc(id)+(isLatest?" (son koşu)":"")+w+'</option>';
+  }).join("");
+}
+
+/* ================= KALİTE görünümleri (v1.1'den) ================= */
 function renderSummary(res){
   const t = res.totals || {}, run = res.run || {};
   $("runMeta").textContent = fmtTs(run.timestamp_utc) + " · " + (run.site || "");
-  if (run.site) $("siteLine").innerHTML = "Kalite taraması — <strong>" + esc(run.site) + "</strong>. Pano yalnız gösterir; onay düğmesi taşımaz.";
+  if (run.site) $("siteLine").innerHTML = "Tarama sonuçları — <strong>" + esc(run.site) +
+    "</strong> (kalite · performans · aksiyon kuyruğu). Pano yalnız gösterir; onay düğmesi taşımaz.";
   const j = run.judge || {};
   $("tiles").innerHTML =
     tile(fmtPct(t.avg_auto_pct), "ortalama oto-puan", "yalnız otomatik kriterler") +
@@ -312,6 +490,8 @@ function renderSummary(res){
     tile(fmtNum(t.scored_pages), "puanlanan sayfa", fmtNum(t.unscored_pages) + " sayfa cetvel dışı") +
     tile(fmtNum(t.trap_terms), "tuzak terim", "") +
     tile(fmtNum(t.fact_conflicts), "gerçek çelişkisi", "onaylı gerçeklerle") +
+    tile(t.broken_pages==null ? "—" : fmtNum(t.broken_pages), "erişilemeyen sayfa",
+         t.broken_pages==null ? "eski koşu — alan yok" : "tohum listesindeydi, canlıda açılamadı") +
     tile(fmtNum(run.pages_ok), "işlenen sayfa", "tavan " + fmtNum(run.max_pages));
   const bt = t.by_type || {};
   const keys = Object.keys(bt);
@@ -323,7 +503,7 @@ function renderSummary(res){
 }
 
 function renderTrend(){
-  const idx = state.index;
+  const idx = state.quality.index;
   const host = $("trendChart"), tbl = $("runTable");
   if (!idx || !Array.isArray(idx.runs) || !idx.runs.length) {
     host.innerHTML = '<p class="muted">index.json yüklenmedi — eğilim ve koşu listesi için onu da aç.</p>';
@@ -340,7 +520,6 @@ function renderTrend(){
          '<text x="'+(PL-6)+'" y="'+(y(g)+4)+'" text-anchor="end">'+g+'</text>';
   const pts = runs.map((r,i)=>[x(i), y(r.avg_auto_pct ?? 0)]);
   s += '<polyline fill="none" stroke="var(--seq)" stroke-width="2" points="'+pts.map(p=>p.join(",")).join(" ")+'"/>';
-  // Model-puan eğilimi: oto çizgisinden AYRI, kesikli ikinci çizgi (v1.1 alanı; eski koşularda yok)
   const jpts = runs.map((r,i)=> r.avg_judged_pct==null ? null : [x(i), y(r.avg_judged_pct), i])
                    .filter(Boolean);
   if (jpts.length){
@@ -367,9 +546,9 @@ function renderTrend(){
     '<th class="num">Ort. model-%</th>'+
     '<th class="num">Tuzak</th><th class="num">Çelişki</th><th class="num">Değişen sayfa</th><th></th></tr>' +
     idx.runs.map(r => {
-      const res = state.results[r.id];
+      const res = state.quality.results[r.id];
       const warn = res && methodChanged(res) ? ' <span class="flag" title="Yöntem değişti">⚠️</span>' : '';
-      const cur = r.id === state.selected ? ' style="font-weight:650"' : '';
+      const cur = r.id === state.quality.selected ? ' style="font-weight:650"' : '';
       const link = res ? '<a href="#" data-run="'+esc(r.id)+'" style="color:var(--seq)">görüntüle</a>'
                        : '<span class="muted" title="Bu koşunun detay dosyası yüklü değil">detay yüklü değil</span>';
       return '<tr'+cur+'><td><code>'+esc(r.id)+'</code>'+warn+'</td><td>'+fmtTs(r.timestamp_utc)+'</td>'+
@@ -380,7 +559,7 @@ function renderTrend(){
         '<td>'+link+'</td></tr>';
     }).join("");
   tbl.querySelectorAll("a[data-run]").forEach(a => a.addEventListener("click", e => {
-    e.preventDefault(); state.selected = a.dataset.run; render();
+    e.preventDefault(); state.quality.selected = a.dataset.run; render();
   }));
 }
 
@@ -391,7 +570,8 @@ function criteriaTable(p){
       : fmtNum(c.points) + ' / ' + fmtNum(c.weight);
     const kind = c.auto ? 'oto'
       : (c.judged_by === 'model' ? '<span style="color:var(--seq2)">model</span>'
-                                 : '<span class="muted">model yargısı</span>');
+      : (c.judged_by === 'vision' ? '<span style="color:var(--seq2)">model(görsel)</span>'
+                                  : '<span class="muted">model yargısı</span>'));
     return '<tr><td><code>'+esc(c.key)+'</code></td>'+
       '<td>'+kind+'</td>'+
       '<td class="num">'+pts+'</td>'+
@@ -406,7 +586,6 @@ function renderPages(res){
   const pages = Array.isArray(res.pages) ? res.pages : [];
   const scored = pages.filter(p => p.scored);
   const unscored = pages.filter(p => !p.scored);
-  // tip filtresi
   const types = [...new Set(scored.map(p => p.type))];
   const tf = $("typeFilter");
   const keep = tf.value;
@@ -440,11 +619,6 @@ function renderPages(res){
     '</table></div></details>';
 }
 
-function listBlock(title, arr, fmt){
-  if (!arr || !arr.length) return "";
-  return '<p style="margin:.6rem 0 .2rem"><strong>'+title+'</strong> ('+arr.length+')</p>'+
-         '<ul style="margin:.2rem 0">'+arr.map(fmt).join("")+'</ul>';
-}
 function findingLine(f){
   if (f.kind === "trap_term")
     return '<li>⚠️ <strong>Tuzak terim</strong> — '+esc(shortUrl(f.url))+': <code>'+esc(f.trap)+'</code>'+
@@ -452,6 +626,10 @@ function findingLine(f){
   if (f.kind === "fact_conflict")
     return '<li>⛔ <strong>Çelişki</strong> — '+esc(shortUrl(f.url))+': <code>'+esc(f.field)+'</code> sayfada '+
       '“'+esc(f.page_value)+'”, onaylı değer “'+esc(f.approved_value)+'”. <span class="ink2">'+esc(f.note||"")+'</span></li>';
+  if (f.kind === "broken_page")
+    return '<li>🔗 <strong>Erişilemeyen sayfa</strong> — '+esc(shortUrl(f.url))+': HTTP '+
+      esc(f.http_status ?? "—")+(f.error?' <span class="ink2">('+esc(f.error)+')</span>':'')+
+      '. <span class="ink2">'+esc(f.note||"")+'</span></li>';
   return '<li>'+esc(JSON.stringify(f))+'</li>';
 }
 function renderChanges(res){
@@ -504,29 +682,286 @@ function renderMeta(res){
     "cetveller: "+rv+(r.rubric_note?" ("+esc(r.rubric_note)+")":"")+" · "+jtxt+
     (r.workflow_run?" · Actions koşusu #"+esc(r.workflow_run):"");
 }
-
-function render(){
-  rebuildOrder();
-  const haveAny = state.order.length && state.selected && state.results[state.selected];
-  $("app").hidden = !haveAny;
-  if (!haveAny) {
-    if (state.index && !Object.keys(state.results).length)
-      banner("index.json yüklendi ama hiçbir koşu detayı (latest.json / history) yok — detay dosyası da aç.", "warn");
-    return;
-  }
-  const sel = $("runSel");
-  sel.innerHTML = state.order.filter(id => state.results[id]).map(id => {
-    const isLatest = id === state.order[0];
-    const w = methodChanged(state.results[id]) ? " ⚠️" : "";
-    return '<option value="'+esc(id)+'"'+(id===state.selected?' selected':'')+'>'+
-      esc(id)+(isLatest?" (son koşu)":"")+w+'</option>';
-  }).join("");
-  const res = state.results[state.selected];
+function renderQuality(){
+  const st = state.quality;
+  const res = st.selected && st.results[st.selected];
+  if (!res) return;
+  fillRunSel("quality","runSel");
   renderSummary(res); renderTrend(); renderPages(res); renderChanges(res); renderFindings(res); renderMeta(res);
 }
 
+/* ================= PERFORMANS görünümleri (v1.2) ================= */
+function renderPerf(){
+  const st = state.perf;
+  const res = st.selected && st.results[st.selected];
+  if (!res) return;
+  fillRunSel("perf","pRunSel");
+  const t = res.totals || {}, run = res.run || {};
+  const w = run.window || {};
+  $("pRunMeta").textContent = fmtTs(run.timestamp_utc) + " · " + (run.site || "") +
+    " · pencere " + (w.start_date||"?") + " → " + (w.end_date||"?") + " (" + fmtNum(w.days) + " gün)";
+  $("pTiles").innerHTML =
+    tile(fmtNum(t.pages), "sayfa", "GSC ∪ GA4 birleşimi") +
+    tile(fmtNum(t.impressions), "gösterim", "GSC") +
+    tile(fmtNum(t.clicks), "tıklama", "GSC") +
+    tile(fmtNum(t.sessions), "oturum", "GA4") +
+    tile(fmtNum(t.matched_quality_pages), "kalite eşleşen", "puanı bilinen sayfa") +
+    tile(fmtNum(t.cannibal_queries), "kanibal sorgu", "vekil tespit");
+  const src = run.sources || {};
+  const srcLine = k => {
+    const s = src[k]; if (!s) return "";
+    return '<span class="chip'+(s.ok?"":" warn")+'">'+(s.ok?"✓":"✗")+" "+k.toUpperCase()+
+      " — "+fmtNum(s.rows)+" satır"+(s.ok?"":(" · "+esc(s.error||"hata")))+"</span> ";
+  };
+  $("pSources").innerHTML = '<span class="kv">Kaynaklar: </span>'+srcLine("gsc")+srcLine("ga4")+
+    (run.quality_run_id ? '<span class="kv">· kalite koşusu <code>'+esc(run.quality_run_id)+'</code></span>'
+                        : '<span class="kv">· kalite eşleşmesi yok</span>');
+  // Öncelik önizlemesi: priority_auto'su olan sayfalar, azalan
+  const pages = Array.isArray(res.pages) ? res.pages : [];
+  const prio = pages.filter(p => p.priority_auto != null)
+                    .sort((a,b) => (b.priority_auto||0)-(a.priority_auto||0)).slice(0, 15);
+  $("pPriority").innerHTML = !prio.length
+    ? '<tr><td class="muted">priority_auto alanı olan sayfa yok (kalite eşleşmesi gerekli).</td></tr>'
+    : '<tr><th class="num">#</th><th>Sayfa</th><th>Tip</th><th class="num">Oto %</th>'+
+      '<th class="num">Gösterim</th><th class="num">Öncelik (önizleme)</th><th>İlk sorgu</th></tr>'+
+      prio.map((p,i) => {
+        const q = (p.top_queries && p.top_queries[0]) ? p.top_queries[0].query : "";
+        const qual = p.quality || {};
+        return '<tr><td class="num">'+(i+1)+'</td>'+
+          '<td><a href="'+esc(p.url||("#"))+'" target="_blank" rel="noopener" style="color:inherit">'+esc(shortPath(p.path))+'</a></td>'+
+          '<td>'+(qual.type?typeChip(qual.type):'<span class="muted">—</span>')+'</td>'+
+          '<td class="num">'+fmtPct(qual.auto_pct)+'</td>'+
+          '<td class="num">'+fmtNum(p.impressions)+'</td>'+
+          '<td class="num"><strong>'+fmtNum1(p.priority_auto)+'</strong></td>'+
+          '<td class="ink2">'+esc(q)+'</td></tr>';
+      }).join("");
+  // Kanibalizm
+  const cann = (Array.isArray(res.findings)?res.findings:[]).filter(f => f.kind === "cannibal_query");
+  $("pCannibal").innerHTML = !cann.length ? '<p class="ink2">Kanibal sorgu bulgusu yok.</p>' :
+    cann.map(f =>
+      '<details><summary><code>'+esc(f.query)+'</code> — '+fmtNum(f.total_impressions)+
+      ' gösterim, '+(f.pages?f.pages.length:0)+' yarışan sayfa</summary>'+
+      '<div class="scroll"><table><tr><th>Sayfa</th><th class="num">Tıklama</th><th class="num">Gösterim</th><th class="num">Konum</th></tr>'+
+      (f.pages||[]).map(p => '<tr><td>'+esc(shortPath(p.path))+'</td><td class="num">'+fmtNum(p.clicks)+
+        '</td><td class="num">'+fmtNum(p.impressions)+'</td><td class="num">'+fmtNum1(p.position)+'</td></tr>').join("")+
+      '</table></div>'+(f.note?'<p class="kv">'+esc(f.note)+'</p>':'')+'</details>'
+    ).join("");
+  // Sayfalar (gösterime göre ilk 30)
+  const byImp = pages.slice().sort((a,b)=>(b.impressions||0)-(a.impressions||0));
+  const top = byImp.slice(0, 30);
+  $("pPages").innerHTML = '<tr><th>Sayfa</th><th class="num">Gösterim</th><th class="num">Tıklama</th>'+
+    '<th class="num">CTR</th><th class="num">Konum</th><th class="num">Oturum</th>'+
+    '<th class="num">Etkileşim</th><th class="num">Oto %</th><th class="num">Model %</th></tr>'+
+    top.map(p => {
+      const qual = p.quality || {};
+      return '<tr><td><a href="'+esc(p.url||"#")+'" target="_blank" rel="noopener" style="color:inherit">'+
+        esc(shortPath(p.path))+'</a></td>'+
+        '<td class="num">'+fmtNum(p.impressions)+'</td><td class="num">'+fmtNum(p.clicks)+'</td>'+
+        '<td class="num">'+fmtCtr(p.ctr)+'</td><td class="num">'+fmtNum1(p.position)+'</td>'+
+        '<td class="num">'+fmtNum(p.sessions)+'</td><td class="num">'+fmtCtr(p.engagement_rate)+'</td>'+
+        '<td class="num">'+fmtPct(qual.auto_pct)+'</td>'+
+        '<td class="num" style="color:var(--seq2)" title="Model puanı bilgidir — oto ile toplanmaz">'+fmtPct(qual.judged_pct)+'</td></tr>';
+    }).join("");
+  $("pPagesMore").textContent = pages.length > top.length
+    ? "Toplam " + pages.length.toLocaleString("tr-TR") + " sayfadan gösterime göre ilk " + top.length + " satır gösteriliyor."
+    : "";
+  // Koşular
+  const idx = st.index;
+  $("pRuns").innerHTML = (!idx || !Array.isArray(idx.runs) || !idx.runs.length)
+    ? '<tr><td class="muted">index.json yüklenmedi.</td></tr>'
+    : '<tr><th>Koşu</th><th>Tarih</th><th>Pencere</th><th class="num">Sayfa</th><th class="num">Gösterim</th>'+
+      '<th class="num">Tıklama</th><th class="num">Oturum</th><th class="num">Kalite eşleşen</th><th class="num">Kanibal</th><th></th></tr>'+
+      idx.runs.map(r => {
+        const have = !!st.results[r.id];
+        const cur = r.id === st.selected ? ' style="font-weight:650"' : '';
+        const link = have ? '<a href="#" data-prun="'+esc(r.id)+'" style="color:var(--seq)">görüntüle</a>'
+                          : '<span class="muted">detay yüklü değil</span>';
+        return '<tr'+cur+'><td><code>'+esc(r.id)+'</code></td><td>'+fmtTs(r.timestamp_utc)+'</td>'+
+          '<td class="kv">'+esc(r.window_start||"?")+' → '+esc(r.window_end||"?")+'</td>'+
+          '<td class="num">'+fmtNum(r.pages)+'</td><td class="num">'+fmtNum(r.impressions)+'</td>'+
+          '<td class="num">'+fmtNum(r.clicks)+'</td><td class="num">'+fmtNum(r.sessions)+'</td>'+
+          '<td class="num">'+fmtNum(r.matched_quality_pages)+'</td><td class="num">'+fmtNum(r.cannibal_queries)+'</td>'+
+          '<td>'+link+'</td></tr>';
+      }).join("");
+  $("pRuns").querySelectorAll("a[data-prun]").forEach(a => a.addEventListener("click", e => {
+    e.preventDefault(); st.selected = a.dataset.prun; render();
+  }));
+  // Değişim
+  const c = res.changes;
+  const delta = (v, l) => v==null ? "" :
+    '<li>'+l+': <span class="'+(v>=0?'delta-up':'delta-down')+'">'+(v>=0?'▲':'▼')+' '+fmtNum(Math.abs(v))+'</span></li>';
+  $("pChanges").innerHTML = !c ? '<p class="muted">Bu koşuda değişim bloğu yok.</p>'
+    : c.first_run ? '<p class="ink2">İlk kalıcı koşu — önceki kayıt yok, fark üretilmedi.</p>'
+    : '<p class="kv">Önceki koşu: <code>'+esc(c.prev_run_id)+'</code> ('+fmtTs(c.prev_timestamp_utc)+')</p>'+
+      '<ul style="margin:.2rem 0">'+delta(c.impressions_delta,"Gösterim")+delta(c.clicks_delta,"Tıklama")+
+      delta(c.sessions_delta,"Oturum")+'</ul>'+
+      (c.note?'<p class="kv">'+esc(c.note)+'</p>':'');
+  $("pMeta").innerHTML = "Sözleşme: <code>"+esc(res.contract)+" v"+esc(res.contract_version)+"</code> · "+
+    "motor <code>"+esc(run.engine_rev||"—")+"</code> · marka paketi <code>"+esc(run.brandpack_rev||"—")+"</code>"+
+    (run.workflow_run?" · Actions koşusu #"+esc(run.workflow_run):"");
+}
+
+/* ================= AKSİYON KUYRUĞU görünümleri (v1.2) ================= */
+function queueRow(q, showRank){
+  const missing = Array.isArray(q.missing_criteria) && q.missing_criteria.length
+    ? '<details><summary>Eksik kriterler ('+q.missing_criteria.length+')</summary><ul style="margin:.2rem 0">'+
+      q.missing_criteria.map(m => '<li><code>'+esc(m.key)+'</code> — '+fmtNum(m.points)+' / '+fmtNum(m.weight)+
+        ' (açık: '+fmtNum(m.gap)+' p)</li>').join("")+'</ul></details>'
+    : "";
+  return '<tr>'+(showRank?'<td class="num">'+fmtNum(q.rank)+'</td>':'')+
+    '<td><a href="'+esc(q.url||"#")+'" target="_blank" rel="noopener" style="color:inherit">'+
+    esc(shortPath(q.path))+'</a>'+(q.type?' '+typeChip(q.type):'')+
+    '<div class="ink2" style="font-size:.82rem">'+esc(q.reason||"")+'</div>'+missing+'</td>'+
+    '<td>'+boxChip(q.box)+'</td>'+
+    '<td class="num">'+fmtPct(q.auto_pct)+'</td>'+
+    '<td class="num" style="color:var(--seq2)" title="Model puanı bilgidir — hesaba karışmaz">'+fmtPct(q.judged_pct)+'</td>'+
+    '<td class="num">'+fmtNum(q.impressions)+'</td>'+
+    '<td class="num">'+fmtCtr(q.ctr)+'</td>'+
+    '<td class="num">'+fmtNum1(q.position)+'</td>'+
+    '<td class="num"><strong>'+fmtNum1(q.priority_auto)+'</strong></td>'+
+    '<td>'+(q.effort?'<span class="chip">'+esc(q.effort)+'</span>':'—')+'</td></tr>';
+}
+const QUEUE_HEAD = '<th>Sayfa · gerekçe</th><th>Kutu</th><th class="num">Oto %</th>'+
+  '<th class="num">Model %</th><th class="num">Gösterim</th><th class="num">CTR</th>'+
+  '<th class="num">Konum</th><th class="num">Öncelik</th><th>Emek</th>';
+function renderActions(){
+  const st = state.actions;
+  const res = st.selected && st.results[st.selected];
+  if (!res) return;
+  fillRunSel("actions","aRunSel");
+  const t = res.totals || {}, run = res.run || {}, inp = run.inputs || {}, th = run.thresholds || {};
+  $("aRunMeta").textContent = fmtTs(run.timestamp_utc) + " · " + (run.site || "");
+  const boxes = t.boxes || {};
+  $("aTiles").innerHTML =
+    tile(fmtNum(t.queue), "aylık kuyruk", "tavan " + fmtNum(th.cap)) +
+    tile(fmtNum(t.waiting), "bekleme listesi", "tavan dışı adaylar") +
+    tile(fmtNum(t.urgent_broken), "ACİL erişilemeyen", "tavanı yemez") +
+    tile(fmtNum(t.consolidation_candidates), "birleştirme adayı", "kanibal etiket/arşiv") +
+    tile(fmtNum(t.strategic), "stratejik bulgu", "site geneli") +
+    tile(fmtNum(t.unscored_with_impressions), "puanlanmamış gösterimli", "önceliklenemedi (bilgi)");
+  $("aInputs").innerHTML = '<span class="kv">Girdiler: performans <code>'+esc(inp.performance_run_id||"—")+
+    '</code> · kalite <code>'+esc(inp.quality_run_id||"—")+'</code>'+
+    (inp.quality_rubric_note?' ('+esc(inp.quality_rubric_note)+')':'')+
+    ' · kutular: başlık/meta '+fmtNum(boxes.title_meta)+' · zenginleştir '+fmtNum(boxes.enrich)+
+    ' · birleştir/kaldır '+fmtNum(boxes.merge_or_remove)+
+    ' · yeni sayfa '+(boxes.new_page==null?"— (otomatik atanmaz)":fmtNum(boxes.new_page))+'</span>';
+  // Kuyruk
+  const queue = Array.isArray(res.queue) ? res.queue : [];
+  $("aQueueTitle").textContent = "Aylık aksiyon kuyruğu ("+queue.length+" / tavan "+(th.cap ?? "?")+")";
+  $("aQueue").innerHTML = !queue.length
+    ? '<tr><td class="muted">Kuyruk boş.</td></tr>'
+    : '<tr><th class="num">#</th>'+QUEUE_HEAD+'</tr>'+queue.map(q => queueRow(q, true)).join("");
+  const waiting = Array.isArray(res.waiting) ? res.waiting : [];
+  $("aWaiting").innerHTML = !waiting.length ? "" :
+    '<details style="margin-top:.6rem"><summary>Bekleme listesi ('+waiting.length+') — tavan dışı, gelecek aylara aday</summary>'+
+    '<div class="scroll"><table><tr>'+QUEUE_HEAD+'</tr>'+waiting.map(q => queueRow(q, false)).join("")+'</table></div></details>';
+  // ACİL
+  const urgent = Array.isArray(res.urgent) ? res.urgent : [];
+  $("aUrgentCard").style.display = urgent.length ? "" : "none";
+  $("aUrgent").innerHTML = '<tr><th>Sayfa</th><th class="num">HTTP</th><th class="num">Gösterim</th>'+
+    '<th class="num">Tıklama</th><th class="num">Konum</th><th>Gerekçe</th></tr>'+
+    urgent.map(u => '<tr><td>'+esc(shortPath(u.path))+'</td>'+
+      '<td class="num" style="color:var(--critical);font-weight:650">'+esc(u.http_status ?? "—")+'</td>'+
+      '<td class="num">'+fmtNum(u.impressions)+'</td><td class="num">'+fmtNum(u.clicks)+'</td>'+
+      '<td class="num">'+fmtNum1(u.position)+'</td><td class="ink2">'+esc(u.reason||"")+'</td></tr>').join("");
+  // Birleştirme adayları
+  const cons = Array.isArray(res.consolidation) ? res.consolidation : [];
+  $("aConsolidation").innerHTML = !cons.length ? '<p class="ink2">Birleştirme adayı yok.</p>' :
+    '<div class="scroll"><table><tr><th>Sayfa</th><th>Yarıştığı sayfalar</th><th>Sorgular</th>'+
+    '<th class="num">Gösterim</th><th>Gerekçe</th></tr>'+
+    cons.map(x => '<tr><td>'+esc(shortPath(x.path))+'</td>'+
+      '<td class="ink2">'+ (Array.isArray(x.competing_with)?x.competing_with.map(p=>esc(shortPath(p))).join("<br>"):"—") +'</td>'+
+      '<td class="ink2">'+ (Array.isArray(x.queries)?x.queries.map(q=>'<code>'+esc(q)+'</code>').join(" "):"—") +'</td>'+
+      '<td class="num">'+fmtNum(x.impressions)+'</td><td class="ink2">'+esc(x.reason||"")+'</td></tr>').join("")+'</table></div>';
+  // Stratejik + ekler
+  const strat = Array.isArray(res.strategic) ? res.strategic : [];
+  $("aStrategic").innerHTML = !strat.length ? '<p class="ink2">Stratejik bulgu yok.</p>' :
+    '<ul style="margin:.2rem 0">'+strat.map(s =>
+      '<li>🧭 <strong><code>'+esc(s.criterion)+'</code></strong> — puanlanan '+fmtNum(s.pages_scored)+
+      ' sayfanın tümünde 0 (ağırlık '+fmtNum(s.weight)+' p). <span class="ink2">'+esc(s.note||"")+'</span></li>').join("")+'</ul>';
+  let ex = "";
+  ex += listBlock("Puanlanmamış gösterimli sayfalar (bilgi — önceliklenemedi)", res.unscored_top,
+    u => '<li>'+esc(shortPath(u.path))+' — '+fmtNum(u.impressions)+' gösterim</li>');
+  ex += listBlock("Ret hafızasıyla atlananlar", res.skipped_rejected,
+    r => '<li>'+esc(shortPath(r.path))+' — '+esc(r.reason||"")+(r.rejected_on?' ('+esc(r.rejected_on)+')':'')+'</li>');
+  ex += listBlock("Dürüstlük notları", res.notes, n => '<li class="ink2">'+esc(n)+'</li>');
+  $("aExtras").innerHTML = ex;
+  // Koşular
+  const idx = st.index;
+  $("aRuns").innerHTML = (!idx || !Array.isArray(idx.runs) || !idx.runs.length)
+    ? '<tr><td class="muted">index.json yüklenmedi.</td></tr>'
+    : '<tr><th>Koşu</th><th>Tarih</th><th class="num">Kuyruk</th><th class="num">Bekleme</th>'+
+      '<th class="num">ACİL</th><th class="num">Birleştirme</th><th class="num">Stratejik</th>'+
+      '<th>Girdi koşuları</th><th></th></tr>'+
+      idx.runs.map(r => {
+        const have = !!st.results[r.id];
+        const cur = r.id === st.selected ? ' style="font-weight:650"' : '';
+        const link = have ? '<a href="#" data-arun="'+esc(r.id)+'" style="color:var(--seq)">görüntüle</a>'
+                          : '<span class="muted">detay yüklü değil</span>';
+        return '<tr'+cur+'><td><code>'+esc(r.id)+'</code></td><td>'+fmtTs(r.timestamp_utc)+'</td>'+
+          '<td class="num">'+fmtNum(r.queue)+'</td><td class="num">'+fmtNum(r.waiting)+'</td>'+
+          '<td class="num">'+fmtNum(r.urgent_broken)+'</td><td class="num">'+fmtNum(r.consolidation_candidates)+'</td>'+
+          '<td class="num">'+fmtNum(r.strategic)+'</td>'+
+          '<td class="kv">perf <code>'+esc(r.performance_run_id||"—")+'</code><br>kalite <code>'+esc(r.quality_run_id||"—")+'</code></td>'+
+          '<td>'+link+'</td></tr>';
+      }).join("");
+  $("aRuns").querySelectorAll("a[data-arun]").forEach(a => a.addEventListener("click", e => {
+    e.preventDefault(); st.selected = a.dataset.arun; render();
+  }));
+  // Değişim
+  const c = res.changes;
+  $("aChanges").innerHTML = !c ? '<p class="muted">Bu koşuda değişim bloğu yok.</p>'
+    : c.first_run ? '<p class="ink2">İlk kalıcı koşu — önceki kayıt yok, fark üretilmedi.</p>'
+    : '<p class="kv">Önceki koşu: <code>'+esc(c.prev_run_id)+'</code> ('+fmtTs(c.prev_timestamp_utc)+')</p>'+
+      listBlock("Kuyruğa girenler", c.queue_added, p => '<li>'+esc(shortPath(p))+'</li>')+
+      listBlock("Kuyruktan çıkanlar", c.queue_removed, p => '<li>'+esc(shortPath(p))+'</li>')+
+      listBlock("Yeni ACİL", c.urgent_added, p => '<li>'+esc(shortPath(p))+'</li>')+
+      listBlock("Çözülen ACİL", c.urgent_resolved, p => '<li>'+esc(shortPath(p))+'</li>')+
+      (c.note?'<p class="kv">'+esc(c.note)+'</p>':'');
+  $("aMeta").innerHTML = "Sözleşme: <code>"+esc(res.contract)+" v"+esc(res.contract_version)+"</code> · "+
+    "motor <code>"+esc(run.engine_rev||"—")+"</code> · marka paketi <code>"+esc(run.brandpack_rev||"—")+"</code>"+
+    (run.workflow_run?" · Actions koşusu #"+esc(run.workflow_run):"") +
+    (th.priority?' · öncelik: '+esc(th.priority):"");
+}
+
+/* ---------- sekmeler + ana render ---------- */
+function famHasData(fam){
+  const st = state[fam];
+  return !!(st.selected && st.results[st.selected]);
+}
+function setTab(tab){ state.tab = tab; render(); }
+function render(){
+  rebuildAll();
+  const anyData = FAMS.some(famHasData);
+  $("tabs").hidden = !anyData;
+  FAMS.forEach(f => { $("tab-"+f).hidden = true; });
+  if (!anyData) {
+    const loadedIdx = FAMS.filter(f => state[f].index).length;
+    if (loadedIdx && !FAMS.some(f => Object.keys(state[f].results).length))
+      banner("index.json yüklendi ama hiçbir koşu detayı (latest.json / history) yok — detay dosyası da aç.", "warn");
+    return;
+  }
+  // sayaçlar + pasif sekme etiketleri
+  const cnt = fam => Object.keys(state[fam].results).length;
+  $("tabCntQ").textContent = famHasData("quality") ? "("+cnt("quality")+" koşu)" : "(veri yok)";
+  $("tabCntP").textContent = famHasData("perf") ? "("+cnt("perf")+" koşu)" : "(veri yok)";
+  $("tabCntA").textContent = famHasData("actions") ? "("+cnt("actions")+" koşu)" : "(veri yok)";
+  if (!famHasData(state.tab)) state.tab = FAMS.find(famHasData);
+  document.querySelectorAll("#tabs button").forEach(b => {
+    b.classList.toggle("active", b.dataset.tab === state.tab);
+  });
+  $("tab-"+state.tab).hidden = false;
+  if (famHasData("quality")) renderQuality();
+  if (famHasData("perf")) renderPerf();
+  if (famHasData("actions")) renderActions();
+}
+
 /* ---------- olaylar ---------- */
-$("runSel").addEventListener("change", e => { state.selected = e.target.value; render(); });
+document.querySelectorAll("#tabs button").forEach(b =>
+  b.addEventListener("click", () => setTab(b.dataset.tab)));
+$("runSel").addEventListener("change", e => { state.quality.selected = e.target.value; render(); });
+$("pRunSel").addEventListener("change", e => { state.perf.selected = e.target.value; render(); });
+$("aRunSel").addEventListener("change", e => { state.actions.selected = e.target.value; render(); });
 $("typeFilter").addEventListener("change", () => render());
 $("sortSel").addEventListener("change", () => render());
 $("filePick").addEventListener("change", e => readFiles(e.target.files));
@@ -537,14 +972,22 @@ drop.addEventListener("drop", e => { e.preventDefault(); drop.classList.remove("
 $("ghFetch").addEventListener("click", ghFetchAll);
 loadCfg();
 
-/* test/enjeksiyon API'si: window.CE_DASH.load({index, results:[...]}) */
+/* test/enjeksiyon API'si:
+   window.CE_DASH.load({results:[...], index})                    — eski imza (aile içerikten bulunur)
+   window.CE_DASH.load({quality:{index,results:[...]}, performance:{...}, actions:{...}}) — v1.2 imzası */
 window.CE_DASH = {
   state,
+  setTab,
   load(objs){
     clearBanners();
     (objs.results||[]).forEach((o,i) => ingest(o, "sonuç#"+i));
     if (objs.index) ingest(objs.index, "index.json");
-    rebuildOrder(); render();
+    for (const key of ["quality","performance","perf","actions"]) {
+      const g = objs[key]; if (!g) continue;
+      (g.results||[]).forEach((o,i) => ingest(o, key+"#"+i));
+      if (g.index) ingest(g.index, key+"/index.json");
+    }
+    rebuildAll(); render();
   }
 };
 </script>
