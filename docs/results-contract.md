@@ -1,5 +1,8 @@
-# Tarama sonuçları veri sözleşmesi — v1.3
+# Tarama sonuçları veri sözleşmesi — v1.4
 
+Sürüm 1.4 · 1 Eylül 2026 (Adım 18: YENİ, bağımsız `draft-result`
+sözleşmesi eklendi — belgenin sonunda. Mevcut sözleşmeler değişmeden durur;
+her sözleşme kendi `contract` + `contract_version` alanıyla sürümlenir).
 Sürüm 1.3 · 31 Ağustos 2026 (Adım 16: YENİ, bağımsız `action-queue-result`
 sözleşmesi eklendi — belgenin sonunda. Kalite sözleşmesi v1.1'e EKLEMELİ
 alanlar: `findings[]` yeni `broken_page` türü + `totals.broken_pages` —
@@ -375,4 +378,101 @@ Dürüstlük kuralları:
            "performance_run_id": "...", "quality_run_id": "...",
            "queue": 4, "waiting": 12, "urgent_broken": 9,
            "consolidation_candidates": 3, "strategic": 1}]}
+```
+
+## draft-result — v1.0 (Adım 18, Kapı 1/2 içerik taslağı)
+
+Aksiyon kuyruğu satırından üretilen içerik taslağı (docs/method.md üç kapı +
+70 yayın eşiği). Taslak yalnız `enrich` (sayfaya eklenecek bölümler paketi —
+yeni yazı değil) ve `title_meta` (3 başlık+meta varyantı) kutuları için
+üretilir; `merge_or_remove` insan kararı, `new_page` Kapı 1 seçimidir.
+
+```
+results/
+  drafts/
+    latest.json          # son taslağın makine dökümü
+    latest.md            # son taslağın insan-okur biçimi (Drive'a giden dosya)
+    index.json           # contract: draft-index
+    history/<run-id>.json
+    history/<run-id>.md
+```
+
+Yazan taraf: marka deposundaki `draft` workflow'u (depo yazımı otomatik
+`GITHUB_TOKEN`; yazım + self-check modeli için `ANTHROPIC_API_KEY` repo
+secret'ı — Adım 10 istisnası).
+
+```jsonc
+{
+  "contract": "draft-result",
+  "contract_version": "1.0",
+  "run": {
+    "id": "20260901T120000Z", "timestamp_utc": "...", "site": "...",
+    "engine_rev": "...", "brandpack_rev": "...", "workflow_run": "1",
+    "writer": {"model": "claude-sonnet-4-5", "requests": 1, "retries": 0},
+    "judge":  {"enabled": true, "model": "claude-haiku-4-5",
+               "prompt_version": "1.2", "requests": 1, "failures": 0,
+               "vision_enabled": false,          // taslakta görsel yargı KAPALI
+               "vision_note": "..."},            // (sahte görsel üretilmez)
+    "inputs": {"action_run_id": "...",           // hangi sentez koşusundan
+               "rank": 2, "path": "/ornek", "box": "enrich",
+               "type": "product_page", "priority_auto": 9222.0,
+               "publish_languages": "tr,en"}     // marka kararı; koddan gelmez
+  },
+  "target": {"path": "...", "url": "...", "type": "...", "box": "...",
+             "language": "tr",                   // html lang > URL öneki > varsayılan
+             "queue_reason": "...", "missing_criteria": [ ... ]},
+  "status": "ready_for_review",                  // | needs_input |
+                                                 // below_threshold | accuracy_failed
+  "status_text": "...",
+  "accuracy_gate": {                             // DETERMİNİSTİK, model sonrası
+    "passed": true,
+    "trap_terms": [],                            // scorer tuzak terim bulguları
+    "fact_conflicts": [],                        // MOQ/termin çelişkileri
+    "note": "sayı denetimi MOQ/termin kalıplarıyla sınırlıdır; ..."
+  },
+  "self_check": {                                // taslak UYGULANMIŞ sayfanın karnesi
+    "gate_pct": 78.5,                            // (oto+model kazanılan) /
+    "threshold": 70, "passed": true,             //  (oto+model değerlendirilebilir)
+    "auto_earned": 30.0, "auto_possible": 38.0,  // bileşenler AYRI da durur —
+    "judged_earned": 21.0, "judged_possible": 27.0, // karne kuralının yerine geçmez
+    "unassessed_weight": 14.0,                   // görsel kriterler + eksik veri:
+    "rubric_version": "1.0+b2",                  // paydaya girmez, insan görevi olur
+    "criteria": [ ... ],                         // kriter bazında tam döküm
+    "findings": [ ... ], "note": "..."
+  },
+  "draft": {
+    "sections": [{"heading": "...", "body_markdown": "...",
+                  "addresses": ["moq", "lead_time"],
+                  "placement_hint": "..."}],     // enrich kutusunda
+    "title_meta": {"variants": [{"title": "...", "meta_description": "...",
+                                 "rationale": "..."}]}, // title_meta kutusunda
+    "human_tasks": [{"kind": "image|quote|info", "note": "..."}],
+    "notes": ["..."], "word_count": 640,
+    "placeholders": ["[BİLGİ GEREKLİ: ...]"]     // model bilgi uyduramaz —
+  },                                             // eksik bilgi yer tutucudur
+  "changes": {"first_run": true, "prev_run_id": null},
+  "notes": ["motor yayınlamaz; onay insandadır (teslim: Drive + e-posta)", "..."]
+}
+```
+
+Değişmez kurallar:
+- Durum sırası: `accuracy_failed` > `below_threshold` > `needs_input` >
+  `ready_for_review`. Yalnız `ready_for_review` onaya sunulur; diğer üçü de
+  KAYDEDİLİR (ne yakalandığı görünür kalsın) ama yayına çıkamaz.
+- Yayın dili kuralı (`--publish-languages`) marka kararıdır ve paket/iş
+  akışından gelir; kural dışı dilde koşu BAŞARISIZ olur, taslak üretilmez.
+- Ret hafızasına denk sayfa için koşu BAŞARISIZ olur, taslak üretilmez.
+- Görsel/alıntı ASLA üretilmez; `human_tasks` listesine düşer (görsel kriter
+  varsa `image` görevi deterministik garanti edilir).
+- Taslak, kuyruğa girmiş sayfalar (queue + waiting) dışına üretilmez.
+
+### draft-index (index.json)
+
+```jsonc
+{"contract": "draft-index", "contract_version": "1.0",
+ "runs": [{"id": "...", "timestamp_utc": "...", "file": "history/....json",
+           "md_file": "history/....md", "path": "/ornek", "box": "enrich",
+           "language": "tr", "status": "ready_for_review", "gate_pct": 78.5,
+           "accuracy_passed": true, "writer_model": "claude-sonnet-4-5",
+           "action_run_id": "...", "engine_rev": "...", "brandpack_rev": "..."}]}
 ```
