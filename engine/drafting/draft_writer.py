@@ -333,8 +333,10 @@ class DraftWriter:
     def write_draft(self, row: dict, page: dict, rubric: dict,
                     brandpack: dict, language: str) -> dict:
         """Taslağı üretir; bozuk cevapta BİR kez yeniden dener. Hata → ValueError."""
+        # max_tokens: enrich paketi birkaç bölüm + tablo içerir; 4000'de cevap
+        # ortadan kesilip JSON bozuluyordu (draft #2 saha bulgusu) — 8192 tavan.
         body = {
-            "model": self.model, "max_tokens": 4000, "temperature": 0.4,
+            "model": self.model, "max_tokens": 8192, "temperature": 0.4,
             "system": self.system_prompt(language),
             "messages": [{"role": "user", "content": self.user_prompt(
                 row, page, rubric, brandpack, language)}],
