@@ -1,0 +1,92 @@
+# Kapı 1/2 içerik taslağı ŞABLONU (Adım 18).
+#
+# Bu dosya MARKA DEPOSUNA kopyalanacak şablondur (gerçek koşular marka
+# deposunda döner; motor deposunda results/ yoktur). Kopyalarken:
+# - `repository:` alanındaki OWNER değiştirilir,
+# - `publish_languages` varsayılanı markanın yayın dili kararına göre yazılır
+#   (marka bilgisi kodda değil, marka deposundaki bu dosyada yaşar).
+#
+# Secret: ANTHROPIC_API_KEY (yazım + self-check modeli — Adım 10 istisnası).
+# Depo yazımı otomatik GITHUB_TOKEN iledir.
+#
+# Girdi: results/actions/latest.json (Kanal C kuyruğu) + brandpack/live
+# Çıktı: results/drafts/ (sözleşme: draft-result v1.0)
+name: draft
+on:
+  workflow_dispatch:
+    inputs:
+      rank:
+        description: "Kuyruk sırası (aksiyon kuyruğundaki satır)"
+        default: "1"
+      path:
+        description: "Sıra yerine sayfa yolu (kuyruk/bekleme listesinden; boş = rank)"
+        default: ""
+      publish_languages:
+        description: "Markanın yayın dilleri (virgüllü; boş = kısıt yok)"
+        default: ""
+permissions:
+  contents: write
+jobs:
+  draft:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4            # marka deposu (kendisi)
+      - uses: actions/checkout@v4            # jenerik motor (public)
+        with:
+          repository: OWNER/content-engine
+          path: engine-repo
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install pyyaml
+      - name: İçerik taslağı üret (Kapı 1/2)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          SITE=$(python -c "import json;print(json.load(open('brandpack/live/analytics.json'))['site'])")
+          ENGINE_REV=$(git -C engine-repo rev-parse HEAD)
+          BRAND_REV=$(git rev-parse HEAD:brandpack)
+          ARGS=(--site "$SITE"
+                --queue-latest results/actions/latest.json
+                --rank "${{ inputs.rank }}"
+                --brandpack-dir brandpack/live
+                --rubrics-dir engine-repo/engine/scoring/rubrics
+                --publish-languages "${{ inputs.publish_languages }}"
+                --out-dir results/drafts
+                --summary draft-summary.md
+                --engine-rev "$ENGINE_REV"
+                --brandpack-rev "$BRAND_REV"
+                --run-number "${{ github.run_number }}")
+          if [ -n "${{ inputs.path }}" ]; then ARGS+=(--path "${{ inputs.path }}"); fi
+          python engine-repo/engine/drafting/draft_writer.py "${ARGS[@]}"
+      - name: Sonuçları depoya yaz
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add results/drafts
+          if git diff --cached --quiet; then
+            echo "Değişiklik yok — commit atlanıyor."
+          else
+            git commit -m "draft: içerik taslağı (koşu ${{ github.run_number }})"
+            git push
+          fi
+      - name: Özet
+        if: always()
+        run: |
+          [ -f draft-summary.md ] && cat draft-summary.md >> "$GITHUB_STEP_SUMMARY" || true
+          {
+            echo ""
+            echo "### Sonuç dosyaları (tam içerik — konteynerden doğrulama için)"
+            for f in results/drafts/latest.json results/drafts/index.json results/drafts/latest.md; do
+              [ -f "$f" ] || continue
+              echo "<details><summary><code>$f</code></summary>"
+              echo ""
+              case "$f" in
+                *.json) echo '```json' ;;
+                *) echo '```markdown' ;;
+              esac
+              cat "$f"
+              echo '```'
+              echo "</details>"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
