@@ -2,7 +2,7 @@
 
 Bağımsız, dağıtılabilir bir **içerik kalite ve fırsat motoru** şablonu.
 Bir web sitesinin mevcut sayfalarını sabit bir kalite cetveliyle puanlar, arama/analitik
-verisiyle çaprazlar ve aylık, kısa bir aksiyon kuyruğu üretir. Onay verilirse içerik
+verisiyle çaprazlar ve aylık, kısa bir öneri kuyruğu üretir (yalnız tespit ve bilgilendirme; siteye dokunmaz). Onay verilirse içerik
 taslağı hazırlar.
 
 > **Şablon depo.** Bu depoda hiçbir markaya ait veri yoktur ve olmayacaktır.
@@ -21,12 +21,14 @@ taslağı hazırlar.
 
 - **Kanal A — dış görüş:** pazar/rakip taraması, içerik boşluğu, mevzuat–trend radarı.
 - **Kanal B — iç görüş:** Search Console + GA4 performansı × kalite cetveli puanı.
-- **Kanal C — sentez:** öncelik formülü → aylık aksiyon kuyruğu (kapasite tavanlı).
+- **Kanal C — sentez:** öncelik formülü → aylık öneri kuyruğu (kapasite tavanlı; uygulanmaz, sunulur).
 
 ## Çalışma modeli
 
-- Rutin işler **GitHub Actions**'ta zamanlanmış olarak döner; pano **GitHub Pages**'te yayımlanır.
-- Motor **yayınlamaz**; taslak üretir, onay her zaman insandadır.
+- Rutin işler **GitHub Actions**'ta zamanlanmış olarak döner; pano yerelde açılır (GitHub Pages seçilmedi).
+- Motor **yalnız tespit eder ve bilgilendirir**: siteye, CMS'e, önbelleğe, DNS'e, yönlendirmelere
+  dokunmaz; bulgu, öneri ve taslak üretir. **Yayınlamaz**; uygulama ve onay her zaman insandadır
+  (`docs/method.md` §0).
 - Yöntem kuralları `docs/method.md`'dedir ve koddan bağımsız sürümlenir.
 
 ## Kurulum (özet)
