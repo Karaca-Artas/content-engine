@@ -11,7 +11,7 @@ kurulum sihirbazı kurar, hiçbir hazır veri taşınmaz.
 |---|---|
 | Karar tarihi | 28 Ağustos 2026 |
 | İlke | Sıfır-başlangıç |
-| Ortam | GitHub Actions + Pages |
+| Ortam | GitHub Actions (pano yerelde) |
 | Yayın dilleri | TR + EN |
 
 ---
@@ -28,7 +28,7 @@ Search Console + GA4 verisi, her sayfanın 100 puanlık kalite cetveliyle çapra
 Google'ın gördüğünü ve göremediğini aynı tabloya koyar.
 *Durum: kurulacak · bu projenin ana işi.*
 
-### Kanal C — Sentez: Aylık aksiyon kuyruğu
+### Kanal C — Sentez: Aylık öneri kuyruğu
 İki kanalın çıktısı tek formülle sıralanır, dört kutuya ayrılır (başlık düzelt / zenginleştir /
 birleştir / yeni sayfa) ve ayda en fazla dört iş seçilir. Her işin sonucu 6–8 hafta sonra
 otomatik yeniden ölçülür.
@@ -50,8 +50,8 @@ otomatik yeniden ölçülür.
 |---|---|
 | **Sıfır-başlangıç ilkesi** | Motor, ArtasPack için bugüne dek biriktirilmiş hiçbir hazır veriyi kullanmaz; her şeyi anket + keşif + teyit turuyla kendisi sıfırdan toplar. Sıfırlanan şey veridir, yöntem değil: öncelik formülü, çelişkiyi sorma kuralı, 6–8 hafta kuralı gibi dersler jenerik tasarım kuralı olarak sistemde kalır. ArtasPack, sihirbazın 1 numaralı müşterisi olarak sistemin gerçek sınavıdır. |
 | **Semrush** | Faz 4'te devreye girer. İlk tur GSC + GA4 ile döner; geri bildirim döngüsü bir kez tamamlanmadan yeni veri kaynağı eklenmez. |
-| **Sentez kadansı** | Ayda bir aksiyon kuyruğu (kapasite: ayda 2–4 iş, kuyruk tavanı 4 satır). Global tarama iki haftada bir sürer, çıktısı aylık senteze girer. |
-| **Çalışma ortamı** | Rutin işler GitHub Actions'ta, pano GitHub Pages'te. Rutin çalışma token harcamaz; token yalnız uygulama güncellenirken kullanılır. |
+| **Sentez kadansı** | Ayda bir öneri kuyruğu (kapasite: ayda 2–4 iş, kuyruk tavanı 4 satır). Global tarama iki haftada bir sürer, çıktısı aylık senteze girer. |
+| **Çalışma ortamı** | Rutin işler GitHub Actions'ta, pano yerelde açılır. Rutin çalışma token harcamaz; token yalnız uygulama güncellenirken kullanılır. |
 | **Model işbölümü** | Toplu puanlama ve rutin özet: Gemini. İçerik yazımı, görsel yargısı ve kodun tamamı: Claude. |
 | **Yayın dilleri** | TR + EN (birbirinin çevirisi değil). FR/DE sayfaları yalnız puanlanır ve izlenir; taslak üretilmez. |
 | **Onay akışı** | Motor yayınlamaz, taslak üretir. Taslaklar Google Drive'a düşer; bildirim ve onay e-posta ile. Onay her zaman Ali'de. |
@@ -70,7 +70,7 @@ cetveli şablonunu önerir, hedef dillerde baş terimleri arayıp tuzak terimler
 çıkarır. **Tur 2:** keşfin ürettiği dinamik teyit soruları — bulunan çelişkiler ("iki farklı
 MOQ var, hangisi?"), keşfedilen rakipler, çıkarılan iddia ve referans isimleri tek tek onaya
 gelir. Çıktı: onaylı gerçekler, terim sözlüğü ve cetvel sıfırdan kurulmuş; ret hafızası ile
-aksiyon kütüğü boş ama aktif.
+değişiklik kaydı boş ama aktif.
 
 > **Bitti sayılır:** bilgi paketi tamamen sihirbaz + onayınla kuruldu, hazır veri taşınmadı.
 
@@ -84,18 +84,18 @@ soru dosyası — cetvelin "alıcı sorusu karşılığı" kriteri onsuz ölçü
 > **Bitti sayılır:** tüm sayfaların puan tablosu + ilk kesişim raporu elimizde.
 
 ### Faz 2 — Sentez ve pano
-*Öncelik formülü · dört kutu · GitHub Pages*
+*Öncelik formülü · dört kutu · yerel pano*
 
-Öncelik formülü ve kanibalizm kontrolü çalışır, ilk aylık aksiyon kuyruğu (en fazla 4 satır)
-üretilir. Pano yayına alınır; aylık rutin Actions'a bağlanır.
+Öncelik formülü ve kanibalizm kontrolü çalışır, ilk aylık öneri kuyruğu (en fazla 4 satır)
+üretilir. Pano yerelde açılır (GitHub Pages seçilmedi — Adım 9 kararı); aylık rutin Actions'a bağlanır.
 
-> **Bitti sayılır:** pano yayında, ilk kuyruk onayına sunuldu.
+> **Bitti sayılır:** pano çalışıyor, ilk kuyruk onayına sunuldu.
 
 ### Faz 3 — Geri bildirim döngüsü
 *Ölçmeden öğrenilmez*
 
-Yapılan her iş kütüğe yazılır; 6–8 hafta sonra motor o sayfayı kendisi yeniden ölçer (tık,
-sıra, puan). Kanal A çıktıları senteze bağlanır; ret hafızası sayesinde aynı öneri iki yerden
+İnsanın sitede yaptığı her değişiklik değişiklik kaydına yazılır (kaydı insan girer); 6–8
+hafta sonra motor o sayfayı kendisi yeniden ölçer (tık, sıra, puan). Motor değişiklik yapmaz. Kanal A çıktıları senteze bağlanır; ret hafızası sayesinde aynı öneri iki yerden
 gelmez.
 
 > **Bitti sayılır:** ilk önce/sonra ölçümü rapora düştü.
@@ -104,8 +104,8 @@ gelmez.
 *Semrush · içerik üretimi · rakip hamle takibi*
 
 Semrush eklenir (rakip kelimeleri, kelime boşluğu). İçerik üretimi üç kapıdan açılır — motor
-önerir / konuyu sen verirsin / global tarama bulur; cetvelden 70 alamayan taslak yayına
-çıkmaz. Rakip sayfalarının fotoğrafı saklanıp hamle farkı izlenir.
+önerir / konuyu sen verirsin / global tarama bulur; cetvelden 70 alamayan taslak onaya
+sunulmaz. Rakip sayfalarının fotoğrafı saklanıp hamle farkı izlenir.
 
 > **Bitti sayılır:** ilk taslak Drive'a düştü ve e-posta onayından geçti.
 
@@ -129,14 +129,17 @@ geçirilecek. Cetvel sürümlenir; kriter değişirse tüm sayfalar yeniden puan
 **Sabır kuralı.** Bir değişikliğin sonucu en erken 6 hafta sonra yorumlanır. Search Console
 gecikmeli gelir; erken bakıp "işe yaramadı" denmez.
 
-**Çıktı biçimi.** Rapor değil aksiyon kuyruğu: en fazla 5–10 satır, ayda en fazla 4 iş.
+**Çıktı biçimi.** Uzun rapor değil öneri kuyruğu (uygulanmaz, sunulur): en fazla 5–10 satır, ayda en fazla 4 iş.
 Gerisi bekleme listesinde, her ay yeniden sıralanır.
 
-**Site güvenliği.** Tarama yavaş ve aralıklı yapılır. WP Rocket'ta tam önbellek temizliği
-yapılmaz, tek URL temizlenir. "Yapılmamış" demeden önce canlı sayfa kontrol edilir.
+**Kapsam sınırı (2 Eyl 2026).** Motor yalnız tespit eder ve bilgilendirir: siteye, CMS'e,
+önbelleğe, DNS'e, yönlendirmelere dokunmaz; bulgu, öneri ve taslak üretir, uygulama insanındır.
+
+**Site güvenliği.** Tarama yavaş ve aralıklı yapılır; site altyapısına hiçbir koşulda dokunulmaz.
+"Yapılmamış" demeden önce canlı sayfa kontrol edilir.
 
 **Doğruluk kapısı.** Üretilen hiçbir metin onaylı gerçekler dosyasının dışında sayı, süre
-veya iddia içeremez. Yasaklı/tuzak terim kullanan taslak yayına çıkamaz.
+veya iddia içeremez. Yasaklı/tuzak terim kullanan taslak onaya sunulmaz.
 
 **Görsel dürüstlüğü.** Şema gerçek rakamdan üretilebilir; fabrika fotoğrafı asla üretilmez —
 arşivden seçilir ya da çekim görevi açılır.
