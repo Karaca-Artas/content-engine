@@ -367,14 +367,17 @@ class DraftWriter:
 # ------------------------------------------------------ taslak → metin/karne
 
 def draft_text(draft: dict) -> str:
-    """Deterministik kapılarının tarayacağı düz taslak metni."""
+    """Deterministik kapıların tarayacağı YAYINLANACAK taslak metni:
+    bölümler + başlık/meta varyantları. Yazar notları (notes) ve insan
+    görevleri kasıtlı olarak DIŞARIDA — sayfaya girmezler ve modelin
+    "şu tuzak terimleri kullanmadım" gibi öz-raporu tuzak taramasında
+    yanlış pozitif üretir (draft #3 saha bulgusu)."""
     parts = []
     for s in draft.get("sections") or []:
         parts += [str(s.get("heading", "")), str(s.get("body_markdown", ""))]
     for v in (draft.get("title_meta") or {}).get("variants") or []:
         parts += [str(v.get("title", "")), str(v.get("meta_description", "")),
                   str(v.get("rationale", ""))]
-    parts += [str(n) for n in draft.get("notes") or []]
     return "\n".join(p for p in parts if p)
 
 
